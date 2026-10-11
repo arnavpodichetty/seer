@@ -18,36 +18,36 @@ struct ContextSettingsView: View {
             }
 
             Section {
+                // The editor blends into the section card instead of drawing its own box.
                 TextEditor(text: $settings.profileSummary)
-                    .font(.callout)
-                    .frame(minHeight: 260)
-                    .overlay(alignment: .topLeading) {
-                        if settings.profileSummary.isEmpty {
-                            Text("Anything you want the chat to keep in mind: who you are, what you're working on, how you like answers.")
-                                .font(.callout)
-                                .foregroundStyle(.tertiary)
-                                .padding(.top, 2)
-                                .allowsHitTesting(false)
-                        }
-                    }
+                    .font(.body)
+                    .lineSpacing(3)
+                    .scrollContentBackground(.hidden)
+                    .scrollIndicators(.never)
+                    .frame(minHeight: 240)
+                    .padding(.vertical, 4)
                     .disabled(!settings.useProfileInAnswers)
                     .opacity(settings.useProfileInAnswers ? 1 : 0.5)
-                HStack {
-                    Text("\(settings.profileSummary.count) characters")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Button("Clear", role: .destructive) { confirmClear = true }
-                        .disabled(settings.profileSummary.isEmpty)
-                        .confirmationDialog("Delete your context?", isPresented: $confirmClear) {
-                            Button("Clear", role: .destructive) {
-                                settings.profileSummary = ""
-                                Task { await environment.cache.removeAll(kind: .interview) }
-                            }
-                        }
-                }
             } header: {
                 Text("Context for the chat")
+            } footer: {
+                HStack {
+                    Spacer()
+                    Text("\(settings.profileSummary.count) characters")
+                        .monospacedDigit()
+                    if !settings.profileSummary.isEmpty {
+                        Button("Clear", role: .destructive) { confirmClear = true }
+                            .buttonStyle(.link)
+                            .confirmationDialog("Delete your context?", isPresented: $confirmClear) {
+                                Button("Clear", role: .destructive) {
+                                    settings.profileSummary = ""
+                                    Task { await environment.cache.removeAll(kind: .interview) }
+                                }
+                            }
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)

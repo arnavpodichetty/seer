@@ -285,7 +285,7 @@ private struct ChatBar: View {
                 Button(action: submit) { Image(systemName: "arrow.up.circle.fill").font(.title3) }
                     .buttonStyle(.borderless)
                     .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    .hoverHint("Send (Return)", edge: .top)
+                    .hoverHint("Send (Return) · New line (Shift+Return)", edge: .top)
             }
         }
         .padding(.horizontal, 10)

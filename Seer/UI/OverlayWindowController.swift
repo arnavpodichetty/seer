@@ -57,6 +57,13 @@ final class OverlayPanel: NSPanel {
             onClose?()
             return
         }
+        // Shift+Return adds a line in the chat field; plain Return still sends.
+        if event.type == .keyDown, event.keyCode == 36 || event.keyCode == 76,
+           event.modifierFlags.intersection([.command, .option, .control, .shift]) == .shift,
+           let editor = firstResponder as? NSTextView {
+            editor.insertNewlineIgnoringFieldEditor(nil)
+            return
+        }
         super.sendEvent(event)
     }
 }
