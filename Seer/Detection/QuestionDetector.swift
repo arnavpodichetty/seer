@@ -194,7 +194,10 @@ nonisolated struct QuestionDetector {
 
         return Candidate(rows: rows, region: region, startRowIndex: start, endRowIndex: end,
                          score: features.score, ranking: features.score + prominence,
-                         kind: features.kind, needsVision: features.needsVision, options: features.options)
+                         kind: features.kind,
+                         // OCR that's unsure of itself often garbles symbols (÷ read as -), so let the model see the crop.
+                         needsVision: features.needsVision || (features.kind != .interview && avgConfidence < 0.5),
+                         options: features.options)
     }
 
     struct Features: Equatable {
@@ -490,7 +493,7 @@ nonisolated struct QuestionDetector {
     enum Patterns {
         static let interrogativeStart = regex(#"^\s*(\d+[.)]\s*)?(what|which|who|whom|whose|when|where|why|how|is|are|does|do|did|can|could|should|would|will|was|were|has|have)\b"#)
         /// Sentence-initial task verbs, optionally after "3." / "a)" / "Q2:".
-        static let imperativeStart = regex(#"^\s*(?:(?:\d{1,3}|[a-h])[.)]\s+|q\d*[.:)]\s*)?(solve|find|calculate|compute|evaluate|determine|simplify|factor|factori[sz]e|expand|differentiate|integrate|prove|show that|implement|write|derive|estimate|convert|rewrite|explain|describe|compare|contrast|define|justify|discuss|summari[sz]e|analy[sz]e|translate|given|tell|introduce|walk)\b"#)
+        static let imperativeStart = regex(#"^\s*(?:(?:\d{1,3}|[a-h])[.)]\s+|q\d*[.:)]\s*)?(solve|find|calculate|compute|evaluate|determine|simplify|factor|factori[sz]e|expand|differentiate|integrate|prove|show that|implement|write|derive|estimate|convert|rewrite|explain|describe|compare|contrast|define|justify|discuss|summari[sz]e|analy[sz]e|translate|given|you are given|you're given|design|tell|introduce|walk)\b"#)
         static let academicStart = regex(#"^\s*(?:(?:\d{1,3}|[a-h])[.)]\s+)?(explain|describe|compare|contrast|define|justify|discuss|summari[sz]e|analy[sz]e|prove|derive|evaluate)\b"#)
         static let task = regex(#"\bwrite (a|an|the)?\s*(sql|query|function|program|method|class|script|algorithm|code|proof|essay|paragraph|equation|regex|regular expression)|\b(solve|find|calculate|compute|evaluate|determine|simplify)\b.*(\d|=|\bx\b|value|angle|area|sum|probability|derivative|integral|equation|length|perimeter|volume|limit|roots?|average|mean)|\bgiven (an?|the|two|some) (array|string|list|integer|tree|graph|number|matrix|binary|linked|table|set|sequence|function)|\bimplement (a|an|the)\b"#)
         static let choiceInstruction = regex(#"^\s*(select|choose|pick|identify|mark|circle) (the |all |one |an? )?(correct|best|right|true|false|most|least|following|answer|option|statement)"#)
@@ -503,7 +506,7 @@ nonisolated struct QuestionDetector {
         static let sqlStrong = regex(#"\b(sql|query|queries|select\b[\s\S]{1,200}\bfrom|group by|order by|inner join|left join|join|create table|primary key|foreign key)\b"#)
         static let sqlWeak = regex(#"\b(table|tables|column|columns|rows|database|schema|where|having|count\(|sum\(|avg\()"#)
         static let programming = regex(#"\b(function|algorithm|array|string|integer|linked list|binary tree|hash ?map|input|output|constraints|example \d|time complexity|space complexity|python|java|javascript|typescript|c\+\+|swift|rust|golang|code|program|implement|recursion|recursive|nums|stack|queue|o\(n)"#)
-        static let mathSymbols = regex(#"[=+−×÷^√∫∑π≤≥≠∞²³]|\d\s*[*/x]\s*\d|\b\d+[a-z]\b|\b(sin|cos|tan|log|ln|lim|dx|dy)\b|f\(x\)|\d+/\d+"#)
+        static let mathSymbols = regex(#"[=+−×÷^√∫∑π≤≥≠∞²³]|\d\s*[*/x-]\s*\d|\b\d+[a-z]\b|\b(sin|cos|tan|log|ln|lim|dx|dy)\b|f\(x\)|\d+/\d+"#)
         static let mathWords = regex(#"\b(equation|solve for|derivative|integral|probability|percent|percentage|area|perimeter|volume|angle|triangle|circle|radius|diameter|slope|matrix|vector|polynomial|quadratic|expression|sum|product|mean|median|average|ratio|fraction|digits?|prime|factorial|hypotenuse|circumference|remainder|divisible)\b"#)
         static let logic = regex(#"\b(if all|must be true|cannot be true|could be true|puzzle|riddle|next number|next term|logically|conclusion|premise|syllogism|truth table|implies)\b"#)
         static let visual = regex(#"\b(graph|chart|plot|diagram|figure|fig\.|image|picture|photo|illustration|histogram|scatter|flowchart|flow chart|circuit|legend|axis|axes|screenshot|shaded|shown (below|above|here|in)|see (the )?(figure|graph|image))\b"#)

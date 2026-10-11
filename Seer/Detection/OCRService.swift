@@ -44,6 +44,13 @@ actor OCRService {
 
     private var isWarm = false
 
+    /// Vision sometimes returns full-width forms ("（2+2）=？") for plain math; map them back to ASCII.
+    static func asciiFromFullWidth(_ text: String) -> String {
+        String(String.UnicodeScalarView(text.unicodeScalars.map { scalar in
+            (0xFF01...0xFF5E).contains(scalar.value) ? Unicode.Scalar(scalar.value - 0xFEE0)! : scalar
+        }))
+    }
+
     private static func runVision(on image: CGImage) throws -> OCRResult {
         let request = VNRecognizeTextRequest()
         request.recognitionLevel = .accurate
@@ -57,7 +64,7 @@ actor OCRService {
         }
         let lines: [OCRLine] = (request.results ?? []).compactMap { observation in
             guard let candidate = observation.topCandidates(1).first else { return nil }
-            let text = candidate.string.trimmingCharacters(in: .whitespacesAndNewlines)
+            let text = asciiFromFullWidth(candidate.string).trimmingCharacters(in: .whitespacesAndNewlines)
             guard !text.isEmpty else { return nil }
             let b = observation.boundingBox
             // Vision uses a bottom-left origin; convert to top-left.

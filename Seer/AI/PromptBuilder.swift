@@ -73,7 +73,7 @@ nonisolated enum PromptBuilder {
             return """
             The user pressed "Solve now". Find the main question, problem, or prompt on their screen and answer it. \
             If there are several, answer the most prominent one and name it in one short line first. \
-            \(attachingImage ? "The screenshot is attached; this is its OCR text:" : "Screen text (OCR):")
+            \(attachingImage ? "The screenshot is attached and is the source of truth; OCR often misreads symbols (÷ as - or +, × as x, exponents as plain digits). Its OCR text:" : "Screen text (OCR):")
             \"\"\"
             \(question.text)
             \"\"\"
@@ -94,7 +94,7 @@ nonisolated enum PromptBuilder {
         parts.append("Detected question type: \(question.kind.displayName)")
         if attachingImage {
             parts.append("""
-            The attached screenshot shows the user's screen. Use it as the primary source for figures, charts, tables, diagrams, and notation. The target question (OCR text, may contain errors) is:
+            The attached screenshot shows the user's screen. Use it as the primary source for figures, charts, tables, diagrams, and notation. OCR often misreads symbols (÷ as - or +, × as x, exponents like 10⁴ as 104); wherever the OCR text and the screenshot disagree, trust the screenshot. The target question (OCR text, may contain errors) is:
             \"\"\"
             \(question.text)
             \"\"\"

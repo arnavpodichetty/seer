@@ -269,4 +269,33 @@ struct QuestionDetectorTests {
         let after = try #require(detector.detect(page(lines, startY: 0.2)).question)
         #expect(QuestionFingerprintService.isSameQuestion(before.fingerprint, after.fingerprint))
     }
+
+    @Test func garbledDivisionIsMathAndShowsTheScreenshot() throws {
+        // Vision read "8 ÷ 2(2 + 2) = ?" as full-width "8-2（2+2）=？" at 0.3 confidence.
+        let text = OCRService.asciiFromFullWidth("8-2（2+2）=？")
+        #expect(text == "8-2(2+2)=?")
+        let ocr = OCRResult(lines: [OCRLine(text: text, box: CGRect(x: 0.3, y: 0.45, width: 0.4, height: 0.06), confidence: 0.3)],
+                            imageSize: CGSize(width: 1600, height: 1000))
+        let q = try #require(QuestionDetector().detect(ocr).question)
+        #expect(q.kind == .math)
+        #expect(q.mode == .vision)
+    }
+
+    @Test func leetCodeStatementBeatsConstraints() throws {
+        func column(_ lines: [(String, CGFloat)], x: CGFloat) -> [OCRLine] {
+            lines.map { OCRLine(text: $0.0, box: CGRect(x: x, y: $0.1, width: 0.42, height: 0.018), confidence: 0.95) }
+        }
+        let left = column([("1. Two Sum", 0.165),
+            ("You are given an array of integers nums and an integer target, return indices of the two", 0.255),
+            ("numbers such that they add up to target.", 0.278),
+            ("You may assume that each input would have exactly one solution, and you may not use the", 0.318),
+            ("same element twice.", 0.341),
+            ("Example 1:", 0.46), ("Input: nums = [2,7,11,15], target = 9", 0.50), ("Output: [0,1]", 0.522),
+            ("Constraints:", 0.825), ("2 <= nums.length <= 104", 0.865)], x: 0.06)
+        let right = column([("1 class Solution:", 0.18), ("2 def twoSum(self, nums: list[int], target: int) -> list[int]:", 0.20)], x: 0.52)
+        let q = try #require(QuestionDetector().detect(OCRResult(lines: left + right, imageSize: CGSize(width: 2380, height: 1540))).question)
+        #expect(q.kind == .programming)
+        #expect(q.text.contains("return indices of the two"))
+        #expect(!q.text.contains("Constraints"))
+    }
 }
