@@ -349,5 +349,36 @@ struct QuestionDetectorTests {
         #expect(QuestionDetector.isOption("o B) 4 True"))
         #expect(!QuestionDetector.isOption("• a bullet point"))
     }
+
+    @Test func mathAlwaysSendsTheScreenshot() throws {
+        // OCR reads "2^(x+1) = 32" as "2x+1 = 32" at full confidence.
+        let q = try #require(QuestionDetector().detect(page(["Solve for x: 2x+1 = 32"])).question)
+        #expect(q.kind == .math)
+        #expect(q.mode == .vision)
+        let code = try #require(QuestionDetector().detect(page(["Write a function that returns the second largest value in a list."])).question)
+        #expect(code.mode == .text)
+    }
+
+    @Test func webSearchOnlyForCompanyOrRecentQuestions() throws {
+        let detector = QuestionDetector()
+        let whyIBM = try #require(detector.detect(page(["Why do you want to work at IBM, and why this role in particular?"])).question)
+        let teammate = try #require(detector.detect(page(["Tell me about a time you had to work with a difficult teammate."])).question)
+        let math = try #require(detector.detect(page(["Solve for x: 2x + 3 = 11"])).question)
+        #expect(PromptBuilder.wantsWebSearch(whyIBM))
+        #expect(!PromptBuilder.wantsWebSearch(teammate))
+        #expect(!PromptBuilder.wantsWebSearch(math))
+        #expect(PromptBuilder.wantsWebSearch(chatMessage: "look up their latest product launch"))
+        #expect(!PromptBuilder.wantsWebSearch(chatMessage: "make it shorter"))
+    }
+
+    @Test func personalityItemsAreAnsweredAsTheUser() throws {
+        let q = try #require(QuestionDetector().detect(page(["Which statement is more like you?", "A. I make decisions quickly.", "B. I gather the facts first."])).question)
+        #expect(PromptBuilder.isSelfAssessment(q))
+        let prompt = PromptBuilder.userPrompt(for: q, attachingImage: false, profile: "- Builds side projects")
+        #expect(prompt.contains("Builds side projects"))
+        let quiz = try #require(QuestionDetector().detect(page(["What is the capital of Australia?", "A. Sydney", "B. Canberra"])).question)
+        #expect(!PromptBuilder.isSelfAssessment(quiz))
+        #expect(!PromptBuilder.userPrompt(for: quiz, attachingImage: false, profile: "- Builds side projects").contains("Builds side projects"))
+    }
 }
 

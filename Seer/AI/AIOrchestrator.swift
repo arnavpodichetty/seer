@@ -428,7 +428,9 @@ final class AIOrchestrator {
         var lastUpdate = Date.distantPast
         do {
             let model = try await complete(system: PromptBuilder.chatSystemPrompt, prompt: prompt, images: images,
-                                           maxTokens: max(settings.maxResponseTokens, 1024)) { [weak self] text in
+                                           maxTokens: max(settings.maxResponseTokens, 1024),
+                                           webSearch: canSearch && PromptBuilder.wantsWebSearch(chatMessage: message),
+                                           preferGemini: currentQuestion.map(prefersGemini) ?? false) { [weak self] text in
                 latest = text
                 guard text.isEmpty || Date().timeIntervalSince(lastUpdate) > 0.08 else { return }
                 lastUpdate = Date()
@@ -450,10 +452,10 @@ final class AIOrchestrator {
 
     /// Streams a free-form completion through the same chain as answers (Gemini models,
     /// then Ollama), calling `onText` with the accumulated text. Returns the model used.
-    private func complete(system: String, prompt: String, images: [String], maxTokens: Int,
-                          onText: @escaping (String) -> Void) async throws -> String {
+    private func complete(system: String, prompt: String, images: [String], maxTokens: Int, webSearch: Bool = false,
+                          preferGemini: Bool = false, onText: @escaping (String) -> Void) async throws -> String {
         let key = settings.geminiAPIKey
-        let backends = currentBackends(withImage: !images.isEmpty)
+        let backends = currentBackends(withImage: !images.isEmpty, preferGemini: webSearch || preferGemini)
         var lastError: Error = OllamaError.emptyResponse
         for backend in backends {
             try Task.checkCancellation()
@@ -461,11 +463,13 @@ final class AIOrchestrator {
                 switch backend {
                 case let .gemini(model):
                     var thinking: String? = "low"
-                    for _ in 0..<2 {
+                    var search = webSearch
+                    for _ in 0..<3 {
                         do {
                             var raw = ""
                             for try await event in gemini(key ?? "").stream(.init(model: model, system: system, text: prompt, imagesBase64JPEG: images,
-                                                                                    maxOutputTokens: maxTokens + 2048, temperature: 0.4, thinkingLevel: thinking)) {
+                                                                                    maxOutputTokens: maxTokens + 2048, temperature: 0.4, thinkingLevel: thinking,
+                                                                                    webSearch: search)) {
                                 try Task.checkCancellation()
                                 if case let .text(text) = event { raw += text; onText(raw) }
                             }
@@ -473,6 +477,11 @@ final class AIOrchestrator {
                             return model
                         } catch let CloudAIError.http(status, message) where status == 400 && thinking != nil && message.lowercased().contains("thinking") {
                             thinking = nil
+                        } catch let CloudAIError.http(status, _) where status == 400 && search {
+                            search = false
+                        } catch let CloudAIError.rateLimited(message) where search {
+                            search = false
+                            noteSearchUnavailable(message)
                         }
                     }
                     throw CloudAIError.emptyResponse
@@ -667,6 +676,42 @@ final class AIOrchestrator {
         return custom + (provider == .groq ? groq + gemini : gemini + groq) + [.ollama]
     }
 
+    /// Interview and questionnaire answers built from the user's context go to Gemini first: in testing it kept to the
+    /// facts given, while gpt-oss on Groq invented conflicts, targets and incidents. A long context
+    /// also overruns Groq's free 8k tokens-per-minute limit after one answer.
+    private func prefersGemini(_ question: DetectedQuestion) -> Bool {
+        (question.kind == .interview || PromptBuilder.isSelfAssessment(question))
+            && settings.activeProfile != nil && settings.geminiAPIKey != nil
+    }
+
+    /// Web search runs through Gemini's Google Search tool, so it needs a Gemini key.
+    private var canSearch: Bool {
+        settings.useWebSearch && settings.geminiAPIKey != nil && settings.aiProvider != .ollama
+            && (searchUnavailableUntil.map { $0 <= Date() } ?? true)
+    }
+
+    /// Free-tier Gemini keys have no search quota: every search request fails with a quota
+    /// error while plain requests work. After one such failure, stop offering search for a while.
+    private var searchUnavailableUntil: Date?
+    private static let searchUnavailableNote = "Web search isn't available on this Gemini key (it needs billing turned on)"
+
+    /// Returns true when the error means the key has no search quota (not a brief per-minute limit).
+    @discardableResult
+    private func noteSearchUnavailable(_ message: String) -> Bool {
+        guard !message.lowercased().contains("per minute") else { return false }
+        searchUnavailableUntil = Date().addingTimeInterval(6 * 60 * 60)
+        return true
+    }
+
+    /// Chain for the current settings, skipping cloud models that are cooling down. With
+    /// `preferGemini`, Gemini goes first (it's the only provider here that can search).
+    private func currentBackends(withImage: Bool, preferGemini: Bool) -> [Backend] {
+        let chain = currentBackends(withImage: withImage)
+        guard preferGemini else { return chain }
+        let isGemini: (Backend) -> Bool = { if case .gemini = $0 { true } else { false } }
+        return chain.filter(isGemini) + chain.filter { !isGemini($0) }
+    }
+
     /// Chain for the current settings, skipping cloud models that are cooling down.
     private func currentBackends(withImage: Bool) -> [Backend] {
         let now = Date()
@@ -764,7 +809,9 @@ final class AIOrchestrator {
         let spokenWords = question.kind == .interview ? PromptBuilder.spokenWordTarget(question.text) ?? 0 : 0
         let budget = max(settings.maxResponseTokens, spokenWords * 2 + 300)
         let key = settings.geminiAPIKey
-        let backends = currentBackends(withImage: question.mode == .vision && image != nil)
+        let search = canSearch && PromptBuilder.wantsWebSearch(question)
+        let backends = currentBackends(withImage: question.mode == .vision && image != nil,
+                                       preferGemini: search || prefersGemini(question))
 
         var failures: [String] = []
         var lastError: Error?
@@ -775,7 +822,7 @@ final class AIOrchestrator {
                 switch backend {
                 case let .gemini(model):
                     outcome = try await solveWithGemini(question, image: image, model: model, key: key ?? "",
-                                                        system: system, budget: budget, generation: generation)
+                                                        system: system, budget: budget, webSearch: search, generation: generation)
                 case let .groq(model):
                     outcome = try await solveWithGroq(question, image: image, model: model, key: settings.groqAPIKey ?? "",
                                                       system: system, budget: budget, generation: generation)
@@ -862,7 +909,7 @@ final class AIOrchestrator {
     }
 
     private func solveWithGemini(_ question: DetectedQuestion, image: CGImage?, model: String, key: String,
-                                 system: String, budget: Int, generation: Int) async throws -> SolveOutcome {
+                                 system: String, budget: Int, webSearch: Bool, generation: Int) async throws -> SolveOutcome {
         state.activeModel = model
         var images: [String] = []
         if question.mode == .vision, let image,
@@ -870,19 +917,25 @@ final class AIOrchestrator {
             images = [encoded]
         }
         var thinking: String? = PromptBuilder.geminiThinkingLevel(kind: question.kind, preference: settings.speedPreference)
-        for _ in 0..<2 {
+        var webSearch = webSearch
+        var searchNote: String?
+        for _ in 0..<3 {
             let request = GeminiClient.Request(
                 model: model, system: system,
-                text: PromptBuilder.userPrompt(for: question, attachingImage: !images.isEmpty, profile: settings.activeProfile),
-                imagesBase64JPEG: images, maxOutputTokens: budget + 2048, temperature: 0.3, thinkingLevel: thinking)
+                text: PromptBuilder.userPrompt(for: question, attachingImage: !images.isEmpty, profile: settings.activeProfile, webSearch: webSearch),
+                imagesBase64JPEG: images, maxOutputTokens: budget + 2048, temperature: 0.3, thinkingLevel: thinking, webSearch: webSearch)
             do {
                 var raw = ""
                 var status: String?
+                var searched = false
                 var lastUpdate = Date.distantPast
                 for try await event in gemini(key).stream(request) {
                     guard generation == solveGeneration, !Task.isCancelled else { throw CancellationError() }
                     switch event {
                     case .thinking:
+                        state.isThinking = true
+                    case .searching:
+                        searched = true
                         state.isThinking = true
                     case let .text(text):
                         raw += text
@@ -894,9 +947,15 @@ final class AIOrchestrator {
                 }
                 guard !AnswerParser.parse(raw).isEmpty else { throw CloudAIError.emptyResponse }
                 return SolveOutcome(raw: raw, model: model, mode: images.isEmpty ? .text : .vision,
-                                    truncated: status == "incomplete", note: nil)
+                                    truncated: status == "incomplete", note: searched ? "Searched the web" : searchNote)
             } catch let CloudAIError.http(status, message) where status == 400 && thinking != nil && message.lowercased().contains("thinking") {
                 thinking = nil   // this model doesn't accept the thinking level; use its default
+            } catch let CloudAIError.http(status, _) where status == 400 && webSearch {
+                webSearch = false   // search isn't available for this model or key; answer without it
+                searchNote = Self.searchUnavailableNote
+            } catch let CloudAIError.rateLimited(message) where webSearch {
+                webSearch = false   // retry right away without search
+                if noteSearchUnavailable(message) { searchNote = Self.searchUnavailableNote }
             }
         }
         throw CloudAIError.emptyResponse

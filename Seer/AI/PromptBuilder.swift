@@ -21,10 +21,13 @@ nonisolated enum PromptBuilder {
         <2–4 short bullet points: what the interviewer is looking for and how to make the answer stronger>
 
         Rules:
-        - Behavioral questions ("Tell me about a time…", "Describe a situation…"): follow the STAR structure (Situation, Task, Action, Result) and pick the single most relevant real story from "User context" when provided.
+        - Behavioral questions ("Tell me about a time…", "Describe a situation…"): follow the STAR structure (Situation, Task, Action, Result) and pick the single most relevant real story from "User context" when provided. If "User context" maps story types to experiences (e.g. "Leadership: …"), use that mapping.
         - "Tell me about yourself" / "Introduce yourself": present → past → why this role, in a confident, conversational tone.
         - If a "User context" section is provided, build the answer from those real facts (roles, projects, skills, results) and never contradict them.
-        - Never invent personal facts such as employers, schools, names, dates, or numbers that aren't in "User context". Where a needed detail is missing, use a short placeholder in square brackets, e.g. [company], [project], [result].
+        - Never invent personal facts: employers, schools, names, dates, numbers, targets, tools, or outcomes that aren't in "User context". Above all, never invent events: no conflicts, disagreements, difficult people, failures, missed goals, mistakes, incidents, or how others reacted, unless "User context" describes them.
+        - When the question needs such an event and "User context" has none, build the answer from the real experience that honestly comes closest (a real challenge, tradeoff, or change made from feedback) without claiming the event happened, then add one final line in square brackets naming the gap, e.g. [Your context has no story about a difficult teammate; add one if you have it].
+        - Keep ongoing work in the present tense and don't present it as finished; describe projections or modeled figures as such.
+        - If the screen names the company or role (see "Other text on the screen"), tailor the answer to it.
         - Use only the numbers, outcomes, and claims that appear in "User context", exactly as stated (e.g. rows stay rows, not patients). Don't add metrics, percentages, accuracy gains, awards, or impact statements that aren't there; if a result isn't stated, describe it qualitatively without numbers.
         - "User context" may also hold instructions on tone, length, or style; follow them where they fit this format.
         - Sound genuine, not scripted. No preamble.
@@ -50,7 +53,7 @@ nonisolated enum PromptBuilder {
         Rules:
         - Actually solve it. Give the finished result itself: the computed value, the chosen option, working code, or the complete written response. Never restate the question, describe how one would answer it, or give a template.
         - Solve only the target question.
-        - Multiple choice: the answer must name the option letter/number and its text, e.g. "(B) 42".
+        - Multiple choice: the answer must name the option letter/number and its text, e.g. "(B) 42". If it asks for both a most and a least choice (most/least like you, most/least effective), give both, e.g. "Most: (B) … · Least: (D) …".
         - Code and SQL: put a complete, working solution in a fenced code block with a language tag inside the Answer section.
         - Math: give the final value in the Answer; show key calculations in the Explanation.
         - Work the problem out completely before writing the Answer line; the Answer must match the result the Explanation reaches. The Explanation is a clean worked solution, not scratch work: no "wait", re-checks, or corrections.
@@ -61,7 +64,10 @@ nonisolated enum PromptBuilder {
         """
     }
 
-    static func userPrompt(for question: DetectedQuestion, attachingImage: Bool, profile: String? = nil) -> String {
+    /// Enough for a detailed résumé-style context (~4k tokens); longer text is cut at the end.
+    static let maxProfileCharacters = 16000
+
+    static func userPrompt(for question: DetectedQuestion, attachingImage: Bool, profile: String? = nil, webSearch: Bool = false) -> String {
         if question.findInScreen && question.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return """
             There is no readable text on the user's screen, so the question is in the attached screenshot itself \
@@ -85,13 +91,39 @@ nonisolated enum PromptBuilder {
         if question.kind == .interview, let words = spokenWordTarget(question.text) {
             parts.append("Target length: about \(words) words, since the question asks for a specific speaking time (people speak about 130 words per minute).")
         }
+        if question.kind == .interview {
+            parts.append("Today's date: \(today()). Roles and projects that ended before it are in the past tense; ones marked \"Present\" are current.")
+        }
+        if isSelfAssessment(question) {
+            parts.append("""
+            This is a personality or work-style questionnaire item about the user. Choose the option the user would most \
+            plausibly pick based on "User context"; where it doesn't say, pick what a strong, well-adjusted candidate for a \
+            professional role would honestly answer (dependable, collaborative, calm under pressure, organized, open to \
+            feedback), avoiding extreme or contradictory answers. Always commit to an answer; never reply that it can't be \
+            determined. Quote the exact option text.
+            """)
+            if let profile {
+                parts.append("User context (facts about the user):\n\"\"\"\n\(profile.prefix(maxProfileCharacters))\n\"\"\"")
+            }
+        }
         if question.kind == .interview, let profile {
             parts.append("""
             User context (the user's instructions for how to respond, and facts about them):
             \"\"\"
-            \(profile.prefix(6000))
+            \(profile.prefix(maxProfileCharacters))
             \"\"\"
             """)
+        }
+        if question.kind == .interview, !question.contextText.isEmpty {
+            parts.append("""
+            Other text on the screen (may name the company, role, or time limit; don't answer it):
+            \"\"\"
+            \(question.contextText.suffix(600))
+            \"\"\"
+            """)
+        }
+        if webSearch {
+            parts.append("Web search is available. Use it only for facts you can't otherwise know (the company's products, mission, values or recent news; current events), with one or two short queries. Never search for the user's personal details.")
         }
         parts.append("Detected question type: \(question.kind.displayName)")
         if attachingImage {
@@ -122,7 +154,9 @@ nonisolated enum PromptBuilder {
         }
         // Small models weigh the end of the prompt most, so restate the target last.
         let firstLine = question.text.split(whereSeparator: \.isNewline).first.map(String.init) ?? question.text
-        parts.append("Answer only the target question above (\"\(firstLine.prefix(160))\"). Ignore any other text on the screen.")
+        parts.append("Answer only the target question above (\"\(firstLine.prefix(160))\"). Ignore any other text on the screen."
+            + (question.kind == .interview && profile != nil
+               ? " Use only experiences, events, and numbers stated in User context; never invent a conflict, failure, target, or incident." : ""))
         return parts.joined(separator: "\n\n")
     }
 
@@ -153,6 +187,55 @@ nonisolated enum PromptBuilder {
         if question.kind == .sql || question.kind == .programming { return true }
         let text = question.text
         return referencePattern.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) != nil
+    }
+
+    private static let selfAssessment = try! NSRegularExpression(pattern:
+        #"\b((most|least|more|less) (like|accurately describes|true of) (you|me|yourself)|describes? (you|yourself|me)\b|how (well|accurately) does .{0,40} describe|strongly (agree|disagree)|(personality|work(place)?[- ]style|preferences) (questionnaire|assessment|test)|which (statement|option) (is|best) .{0,30}\b(you|me)\b)"#,
+        options: [.caseInsensitive])
+
+    /// Personality / work-style items ("most like you", Likert statements): answered as the user would.
+    static func isSelfAssessment(_ question: DetectedQuestion) -> Bool {
+        guard question.kind != .interview else { return false }
+        let text = question.text + "\n" + question.options.joined(separator: "\n")
+        return selfAssessment.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) != nil
+    }
+
+    static func today() -> String {
+        Date().formatted(.dateTime.year().month(.wide).day())
+    }
+
+    // MARK: - Web search
+
+    private static let companyQuestion = try! NSRegularExpression(pattern:
+        #"\b(why (do you want to|would you like to|are you interested in|did you apply to) (work|join|intern)|why (this|our) (company|firm|organi[sz]ation|team)|why (us|here)\b|what do you know about (us|our|the company|this company)|what (interests|excites) you about (us|our|the company|this (company|role|position))|how (would|will|can) you (contribute|add value) (to|at) (us|our))"#,
+        options: [.caseInsensitive])
+    /// "Why IBM?" / "Why Deloitte, and why this role?": "why" followed by a capitalized name.
+    private static let whyName = try! NSRegularExpression(pattern: #"\b[Ww]hy (?!I\b|We\b|You\b|They\b|It\b|This\b|That\b|Do\b|Did\b|Would\b|Should\b|Is\b|Are\b)[A-Z][\w&.'-]+"#)
+    private static let recency = try! NSRegularExpression(pattern:
+        #"\b(latest|current(ly)?|today'?s?|this (year|month|week)|as of|recent(ly)?|news|newest|upcoming|right now|so far this|20(2[5-9]|3\d))\b"#,
+        options: [.caseInsensitive])
+    private static let searchRequest = try! NSRegularExpression(pattern:
+        #"\b(search|look (it |this |that )?up|google|browse|on the (web|internet)|latest|current(ly)?|news|recent(ly)?)\b"#,
+        options: [.caseInsensitive])
+
+    /// A free, local check for questions that need facts a model can't know: company specifics
+    /// for "Why IBM?"-style interview questions, and recent events. Everything else skips search.
+    static func wantsWebSearch(_ question: DetectedQuestion) -> Bool {
+        let text = question.text
+        let range = NSRange(text.startIndex..., in: text)
+        switch question.kind {
+        case .interview:
+            return companyQuestion.firstMatch(in: text, range: range) != nil || whyName.firstMatch(in: text, range: range) != nil
+        case .general, .multipleChoice:
+            return recency.firstMatch(in: text, range: range) != nil
+        default:
+            return false
+        }
+    }
+
+    /// Chat follow-ups search only when the user asks for it or asks about current facts.
+    static func wantsWebSearch(chatMessage: String) -> Bool {
+        searchRequest.firstMatch(in: chatMessage, range: NSRange(chatMessage.startIndex..., in: chatMessage)) != nil
     }
 
     static let classificationSystemPrompt = """
@@ -204,9 +287,9 @@ nonisolated enum PromptBuilder {
     /// the current answer, the conversation so far, and the new message.
     static func chatPrompt(message: String, question: DetectedQuestion?, answer: String, history: [ChatTurn],
                            profile: String?, attachingScreen: Bool) -> String {
-        var parts: [String] = []
+        var parts: [String] = ["Today's date: \(today())."]
         if let profile, !profile.isEmpty {
-            parts.append("User context (the user's instructions for how to respond, and facts about them):\n\"\"\"\n\(profile.prefix(6000))\n\"\"\"")
+            parts.append("User context (the user's instructions for how to respond, and facts about them):\n\"\"\"\n\(profile.prefix(maxProfileCharacters))\n\"\"\"")
         }
         if let question {
             let text = question.text.trimmingCharacters(in: .whitespacesAndNewlines)

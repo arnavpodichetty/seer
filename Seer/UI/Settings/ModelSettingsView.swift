@@ -56,6 +56,11 @@ struct ModelSettingsView: View {
                     Text("Double-check uncertain questions")
                     Text("Asks the AI whether borderline text is really a question.")
                 }
+                Toggle(isOn: $settings.useWebSearch) {
+                    Text("Search the web when needed")
+                    Text("Only for questions about a company or recent events. Needs a Gemini key with billing turned on; the first 5,000 searches a month are free.")
+                }
+                .disabled(settings.geminiAPIKey == nil)
             }
 
             if settings.aiProvider != .ollama {

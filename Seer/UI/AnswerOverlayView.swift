@@ -255,7 +255,7 @@ private struct ChatBar: View {
 
     @State private var text = ""
     @State private var includeScreen = false
-    @State private var fieldHeight: CGFloat = 0
+    @State private var fieldHeight: CGFloat = 17   // one line until measured
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -283,7 +283,7 @@ private struct ChatBar: View {
             }
             .scrollBounceBehavior(.basedOnSize)
             .defaultScrollAnchor(.bottom)
-            .frame(height: fieldHeight > 0 ? min(fieldHeight, 76) : nil)
+            .frame(height: min(max(fieldHeight, 17), 76))
 
             if isChatting {
                 Button(action: stop) { Image(systemName: "stop.circle.fill").font(.title3) }

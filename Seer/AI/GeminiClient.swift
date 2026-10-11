@@ -51,10 +51,14 @@ nonisolated struct GeminiClient: Sendable {
         var temperature: Double = 0.3
         /// "low", "medium" or "high"; nil leaves the model default.
         var thinkingLevel: String?
+        /// Offer the Google Search tool; the model decides whether to use it.
+        var webSearch = false
     }
 
     enum Event: Sendable, Equatable {
         case thinking
+        /// The model ran a Google search.
+        case searching
         case text(String)
         case completed(status: String?)
     }
@@ -82,6 +86,7 @@ nonisolated struct GeminiClient: Sendable {
             var data: String?
             var mime_type: String?
         }
+        struct Tool: Encodable { var type: String }
         struct Config: Encodable {
             var max_output_tokens: Int
             var temperature: Double
@@ -92,6 +97,7 @@ nonisolated struct GeminiClient: Sendable {
         var system_instruction: String?
         var stream: Bool
         var generation_config: Config
+        var tools: [Tool]?
     }
 
     static func body(for request: Request, stream: Bool) throws -> Data {
@@ -99,7 +105,8 @@ nonisolated struct GeminiClient: Sendable {
         parts += request.imagesBase64JPEG.map { Body.Part(type: "image", data: $0, mime_type: "image/jpeg") }
         let body = Body(model: request.model, input: parts, system_instruction: request.system, stream: stream,
                         generation_config: .init(max_output_tokens: request.maxOutputTokens, temperature: request.temperature,
-                                                 thinking_level: request.thinkingLevel))
+                                                 thinking_level: request.thinkingLevel),
+                        tools: request.webSearch ? [.init(type: "google_search")] : nil)
         return try JSONEncoder().encode(body)
     }
 
@@ -125,7 +132,7 @@ nonisolated struct GeminiClient: Sendable {
                     var urlRequest = URLRequest(url: baseURL.appending(path: "interactions").appending(queryItems: [URLQueryItem(name: "alt", value: "sse")]))
                     urlRequest.httpMethod = "POST"
                     // Max silence before failing over; models think quietly for longer on images.
-                    urlRequest.timeoutInterval = request.imagesBase64JPEG.isEmpty ? 12 : 25
+                    urlRequest.timeoutInterval = request.imagesBase64JPEG.isEmpty && !request.webSearch ? 12 : 25
                     urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
                     urlRequest.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
                     urlRequest.httpBody = try Self.body(for: request, stream: true)
@@ -151,6 +158,8 @@ nonisolated struct GeminiClient: Sendable {
                         switch event.event_type {
                         case "step.start" where event.step?.type == "thought":
                             continuation.yield(.thinking)
+                        case "step.start" where event.step?.type == "google_search_call":
+                            continuation.yield(.searching)
                         case "step.delta":
                             if event.delta?.type == "text", let text = event.delta?.text, !text.isEmpty {
                                 continuation.yield(.text(text))

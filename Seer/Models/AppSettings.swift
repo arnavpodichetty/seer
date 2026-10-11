@@ -228,6 +228,8 @@ final class AppSettings {
     var detailLevel: DetailLevel { didSet { defaults.set(detailLevel.rawValue, forKey: "detailLevel") } }
     var speedPreference: SpeedPreference { didSet { defaults.set(speedPreference.rawValue, forKey: "speedPreference") } }
     var useAIClassification: Bool { didSet { defaults.set(useAIClassification, forKey: "useAIClassification") } }
+    /// Lets Gemini search Google for questions that need outside facts ("Why IBM?", recent events).
+    var useWebSearch: Bool { didSet { defaults.set(useWebSearch, forKey: "useWebSearch") } }
     var keepSingleModelLoaded: Bool { didSet { defaults.set(keepSingleModelLoaded, forKey: "keepSingleModelLoaded") } }
     var requestTimeout: Double { didSet { defaults.set(requestTimeout, forKey: "requestTimeout") } }
     /// Longest edge of images sent to the AI: sharp enough for diagrams and small labels
@@ -294,6 +296,7 @@ final class AppSettings {
         detailLevel = raw("detailLevel", .brief)
         speedPreference = raw("speedPreference", .faster)
         useAIClassification = value("useAIClassification", true)
+        useWebSearch = value("useWebSearch", false)
         // Two 4B models fit in 16 GB; unloading between them forces slow reloads.
         keepSingleModelLoaded = value("keepSingleModelLoaded", false)
         requestTimeout = value("requestTimeout", 180.0)

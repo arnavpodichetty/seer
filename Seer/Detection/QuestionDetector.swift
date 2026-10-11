@@ -253,12 +253,17 @@ nonisolated struct QuestionDetector {
 
         let cells = rows.flatMap { $0.text.components(separatedBy: " | ") }
         var options = cells.filter { isOption($0) }
+        // A Likert scale only makes a question together with the statement it rates.
         let likert = matches(lower, Patterns.likert)
+            && (anchorRows ?? rows).contains { !matches($0.text.lowercased(), Patterns.likert) && isProse($0.text) && wordTokens($0.text) >= 4 }
         if likert, options.count < 2 {
             options = cells.filter { matches($0.lowercased(), Patterns.likertAnchor) }
         }
         // "Choose the statement most like you" + a list of plain statements: the statements are the choices.
-        let choiceRows = anchorRows.map { anchors in rows.dropFirst(anchors.count) } ?? []
+        // Rows after the anchor block (a "Question 3" header can come before it).
+        let choiceRows: ArraySlice<Row> = anchorRows?.last.flatMap { last in
+            rows.lastIndex { $0.text == last.text && $0.box == last.box }.map { rows[($0 + 1)...] }
+        } ?? []
         if options.count < 2, starts.contains(where: { matches($0, Patterns.choiceInstruction) }),
            choiceRows.count >= 2, choiceRows.allSatisfy({ $0.text.count <= 120 && !isCodeLike($0.text) }) {
             options = choiceRows.map(\.text)
@@ -316,7 +321,12 @@ nonisolated struct QuestionDetector {
         else if visualHits > 0 || chartLike { kind = .visual }
         else { kind = .general }
 
-        let needsVision = kind != .interview && (visualHits > 0 || chartLike || (geometry && (kind == .math || kind == .multipleChoice)))
+        // OCR flattens exponents ("4²" → "42"), drops stacked fractions and misreads √ and ∫, all at full
+        // confidence; in testing, math answered from OCR text alone was right 4–5 times in 11, and 11 in 11
+        // with the screenshot. Code, prose and interview questions read fine as text, so they skip it.
+        let mathy = kind == .math || kind == .visual
+            || ([.multipleChoice, .general, .logic].contains(kind) && mathSymbols >= 1)
+        let needsVision = kind != .interview && (visualHits > 0 || chartLike || geometry || mathy)
         return Features(score: score, kind: kind, needsVision: needsVision, options: options)
     }
 
