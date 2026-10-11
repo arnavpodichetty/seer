@@ -1,0 +1,7 @@
+// Shared build settings for Seer.
+//
+// To sign builds with your own Apple developer account, create Local.xcconfig next to
+// this file (it's git-ignored) containing:
+//     DEVELOPMENT_TEAM = YOUR_TEAM_ID
+// Without it, Xcode signs to run locally only.
+#include? "Local.xcconfig"
