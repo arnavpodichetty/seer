@@ -21,11 +21,12 @@ nonisolated enum PromptBuilder {
         <2–4 short bullet points: what the interviewer is looking for and how to make the answer stronger>
 
         Rules:
-        - Behavioral questions ("Tell me about a time…", "Describe a situation…"): follow the STAR structure (Situation, Task, Action, Result) and pick the single most relevant real story from "About the user" when provided.
+        - Behavioral questions ("Tell me about a time…", "Describe a situation…"): follow the STAR structure (Situation, Task, Action, Result) and pick the single most relevant real story from "User context" when provided.
         - "Tell me about yourself" / "Introduce yourself": present → past → why this role, in a confident, conversational tone.
-        - If an "About the user" section is provided, build the answer from those real facts (roles, projects, skills, results) and never contradict them.
-        - Never invent personal facts such as employers, schools, names, dates, or numbers that aren't in "About the user". Where a needed detail is missing, use a short placeholder in square brackets, e.g. [company], [project], [result].
-        - Use only the numbers, outcomes, and claims that appear in "About the user", exactly as stated (e.g. rows stay rows, not patients). Don't add metrics, percentages, accuracy gains, awards, or impact statements that aren't there; if a result isn't stated, describe it qualitatively without numbers.
+        - If a "User context" section is provided, build the answer from those real facts (roles, projects, skills, results) and never contradict them.
+        - Never invent personal facts such as employers, schools, names, dates, or numbers that aren't in "User context". Where a needed detail is missing, use a short placeholder in square brackets, e.g. [company], [project], [result].
+        - Use only the numbers, outcomes, and claims that appear in "User context", exactly as stated (e.g. rows stay rows, not patients). Don't add metrics, percentages, accuracy gains, awards, or impact statements that aren't there; if a result isn't stated, describe it qualitatively without numbers.
+        - "User context" may also hold instructions on tone, length, or style; follow them where they fit this format.
         - Sound genuine, not scripted. No preamble.
         """
     }
@@ -84,7 +85,7 @@ nonisolated enum PromptBuilder {
         }
         if question.kind == .interview, let profile {
             parts.append("""
-            About the user:
+            User context (the user's instructions for how to respond, and facts about them):
             \"\"\"
             \(profile.prefix(6000))
             \"\"\"
@@ -186,9 +187,10 @@ nonisolated enum PromptBuilder {
     You are Seer, an assistant in a small overlay on the user's Mac. The user is chatting with you, usually \
     about the question currently on their screen and the answer you gave. Do what they ask directly: rewrite, shorten, \
     expand, explain a step, check work, or answer a new question. Reply concisely in Markdown; use "###" headings for \
-    longer replies and fenced code blocks with a language tag for code. If a screenshot is attached, use it. When \
-    writing interview answers, speak as the user in the first person and use only facts from "About the user", with \
-    [placeholders] for anything missing. No preamble.
+    longer replies and fenced code blocks with a language tag for code. If a screenshot is attached, use it. If a \
+    "User context" section is given, follow its instructions on tone, length, style and format over these defaults, \
+    and use its facts about the user. When writing interview answers, speak as the user in the first person and use \
+    only facts from "User context", with [placeholders] for anything missing. No preamble.
     """
 
     struct ChatTurn: Sendable {
@@ -202,7 +204,7 @@ nonisolated enum PromptBuilder {
                            profile: String?, attachingScreen: Bool) -> String {
         var parts: [String] = []
         if let profile, !profile.isEmpty {
-            parts.append("About the user:\n\"\"\"\n\(profile.prefix(6000))\n\"\"\"")
+            parts.append("User context (the user's instructions for how to respond, and facts about them):\n\"\"\"\n\(profile.prefix(6000))\n\"\"\"")
         }
         if let question {
             let text = question.text.trimmingCharacters(in: .whitespacesAndNewlines)

@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Facts about the user that Seer uses to answer questions about them.
+/// The user's instructions for how Seer should respond, plus facts about them.
 struct ContextSettingsView: View {
     let environment: AppEnvironment
     @State private var confirmClear = false
@@ -12,7 +12,7 @@ struct ContextSettingsView: View {
                 Toggle("Context", isOn: $settings.useProfileInAnswers)
                     .toggleStyle(.switch)
             } footer: {
-                Text("When on, the chat and personal questions get the context below. It's sent to the AI provider along with your message.")
+                Text("When on, the chat and personal questions get the text below. It's sent to the AI provider along with your message.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -25,13 +25,25 @@ struct ContextSettingsView: View {
                     .scrollContentBackground(.hidden)
                     .scrollIndicators(.never)
                     .frame(minHeight: 240)
+                    .overlay(alignment: .topLeading) {
+                        if settings.profileSummary.isEmpty {
+                            // Matches the editor's 5pt line fragment padding so the placeholder sits where typing starts.
+                            Text("e.g. Talk casually and keep replies short. Explain math step by step. Show code in Swift.\n\nI'm a third-year CS student interning at a fintech this summer.")
+                                .font(.body)
+                                .lineSpacing(3)
+                                .foregroundStyle(.tertiary)
+                                .padding(.leading, 5)
+                                .allowsHitTesting(false)
+                        }
+                    }
                     .padding(.vertical, 4)
                     .disabled(!settings.useProfileInAnswers)
                     .opacity(settings.useProfileInAnswers ? 1 : 0.5)
             } header: {
-                Text("Context for the chat")
+                Text("Instructions and context")
             } footer: {
                 HStack {
+                    Text("How you want the chat to talk, plus anything it should know about you.")
                     Spacer()
                     Text("\(settings.profileSummary.count) characters")
                         .monospacedDigit()
