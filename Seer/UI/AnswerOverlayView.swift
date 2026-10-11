@@ -255,6 +255,7 @@ private struct ChatBar: View {
 
     @State private var text = ""
     @State private var includeScreen = false
+    @State private var fieldHeight: CGFloat = 0
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -266,16 +267,23 @@ private struct ChatBar: View {
             .buttonStyle(.borderless)
             .hoverHint(includeScreen ? "Screenshot will be attached" : "Attach a screenshot", edge: .top, alignment: .leading)
 
-            TextField("Ask a follow-up…", text: $text, axis: .vertical)
-                .textFieldStyle(.plain)
-                .lineLimit(1...4)
-                .focused($focused)
-                .onSubmit(submit)
-                // The overlay never takes keyboard focus on its own; clicking here asks for it.
-                .simultaneousGesture(TapGesture().onEnded {
-                    focusForTyping()
-                    focused = true
-                })
+            // A line-limited field cuts off longer text with no way to scroll back to it, so the
+            // field grows inside a scroll view that stops growing at about four lines.
+            ScrollView {
+                TextField("Ask a follow-up…", text: $text, axis: .vertical)
+                    .textFieldStyle(.plain)
+                    .focused($focused)
+                    .onSubmit(submit)
+                    // The overlay never takes keyboard focus on its own; clicking here asks for it.
+                    .simultaneousGesture(TapGesture().onEnded {
+                        focusForTyping()
+                        focused = true
+                    })
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { fieldHeight = $0 }
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            .defaultScrollAnchor(.bottom)
+            .frame(height: fieldHeight > 0 ? min(fieldHeight, 76) : nil)
 
             if isChatting {
                 Button(action: stop) { Image(systemName: "stop.circle.fill").font(.title3) }
