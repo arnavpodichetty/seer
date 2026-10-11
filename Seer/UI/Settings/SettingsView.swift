@@ -36,11 +36,13 @@ struct GeneralSettingsView: View {
 
             Section {
                 ShortcutRow(title: "Show or hide overlay", shortcut: $settings.overlayShortcut, defaultShortcut: .defaultOverlay,
-                            taken: [settings.resetShortcut, settings.solveShortcut], environment: environment)
+                            taken: [settings.resetShortcut, settings.solveShortcut, settings.monitorShortcut], environment: environment)
                 ShortcutRow(title: "Solve screen now", shortcut: $settings.solveShortcut, defaultShortcut: .defaultSolve,
-                            taken: [settings.overlayShortcut, settings.resetShortcut], environment: environment)
+                            taken: [settings.overlayShortcut, settings.resetShortcut, settings.monitorShortcut], environment: environment)
                 ShortcutRow(title: "Reset answer", shortcut: $settings.resetShortcut, defaultShortcut: .defaultReset,
-                            taken: [settings.overlayShortcut, settings.solveShortcut], environment: environment)
+                            taken: [settings.overlayShortcut, settings.solveShortcut, settings.monitorShortcut], environment: environment)
+                ShortcutRow(title: "Start or pause monitoring", shortcut: $settings.monitorShortcut, defaultShortcut: .defaultMonitor,
+                            taken: [settings.overlayShortcut, settings.solveShortcut, settings.resetShortcut], environment: environment)
             } header: {
                 Text("Keyboard Shortcuts")
             } footer: {

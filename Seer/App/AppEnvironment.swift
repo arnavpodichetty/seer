@@ -47,7 +47,10 @@ final class AppEnvironment {
         let overlayOK = hotKey.register(id: 1, settings.overlayShortcut) { [unowned self] in overlay.toggle() }
         let resetOK = hotKey.register(id: 2, settings.resetShortcut) { [unowned self] in orchestrator.resetConversation() }
         let solveOK = hotKey.register(id: 3, settings.solveShortcut) { [unowned self] in orchestrator.solveNow() }
-        state.hotKeyRegistered = overlayOK && resetOK && solveOK
+        let monitorOK = hotKey.register(id: 4, settings.monitorShortcut) { [unowned self] in
+            orchestrator.setMonitoring(!state.isMonitoring)
+        }
+        state.hotKeyRegistered = overlayOK && resetOK && solveOK && monitorOK
         if !state.hotKeyRegistered {
             Log.ui.error("A global shortcut is already in use by another app")
         }
@@ -57,7 +60,7 @@ final class AppEnvironment {
     /// them (picking up the new combination).
     func setRecordingShortcut(_ recording: Bool) {
         if recording {
-            (1...3).forEach { hotKey.unregister(id: $0) }
+            (1...4).forEach { hotKey.unregister(id: $0) }
         } else {
             registerHotKeys()
         }

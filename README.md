@@ -24,6 +24,7 @@ Requires macOS 27 and Apple Silicon.
 | ⌃⌥Space | Show or hide the overlay |
 | ⌃⌥S | Solve whatever is on screen now |
 | ⌃⌥R | Reset the answer |
+| ⌃⌥M | Start or pause monitoring |
 
 Shortcuts can be changed in Settings → General. Turn on **Watch screen for questions** to have Seer detect questions automatically, or just use ⌃⌥S when you need it. Esc or ⌘W closes the overlay, and the chat bar at the bottom takes follow-up questions.
 

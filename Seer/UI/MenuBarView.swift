@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct MenuBarView: View {
@@ -5,10 +6,9 @@ struct MenuBarView: View {
     private var state: AppState { environment.state }
 
     var body: some View {
-        Button(state.isMonitoring ? "Pause Monitoring" : "Start Monitoring") {
+        Button((state.isMonitoring ? "Pause Monitoring" : "Start Monitoring") + "  (\(environment.settings.monitorShortcut.label))") {
             environment.orchestrator.setMonitoring(!state.isMonitoring)
         }
-        .keyboardShortcut("m")
 
         Button((state.isOverlayVisible ? "Hide Overlay" : "Show Overlay") + "  (\(environment.settings.overlayShortcut.label))") {
             environment.overlay.toggle()
@@ -45,14 +45,54 @@ struct MenuBarLabel: View {
     let state: AppState
 
     var body: some View {
-        Image(systemName: symbol)
+        // Matches the app icon: solid while watching the screen, hollow while paused.
+        Image(nsImage: state.isMonitoring ? Self.filled : Self.hollow)
             .accessibilityLabel(state.isMonitoring ? "Seer monitoring" : "Seer paused")
     }
 
-    private var symbol: String {
-        if case .solving = state.phase { return "sparkle.magnifyingglass" }
-        // Hint that an answer is waiting behind the shortcut.
-        if case .answer = state.phase, !state.isOverlayVisible { return "text.bubble.fill" }
-        return state.isMonitoring ? "eye.circle.fill" : "eye.slash.circle"  // the seer's eye: open while watching
+    private static let filled = crystalBall(filled: true)
+    private static let hollow = crystalBall(filled: false)
+
+    /// An 18-pt template crystal ball on a cradle and base, drawn in code since SF Symbols has none.
+    static func crystalBall(filled: Bool) -> NSImage {
+        let image = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { _ in
+            guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
+            ctx.setFillColor(NSColor.black.cgColor)
+            ctx.setStrokeColor(NSColor.black.cgColor)
+            // Base and cradle.
+            ctx.addPath(CGPath(roundedRect: CGRect(x: 2.5, y: 1, width: 13, height: 2.4), cornerWidth: 0.9, cornerHeight: 0.9, transform: nil))
+            ctx.fillPath()
+            let cradle = CGMutablePath()
+            cradle.move(to: CGPoint(x: 4.2, y: 3.4))
+            cradle.addLine(to: CGPoint(x: 5.4, y: 6.4))
+            cradle.addLine(to: CGPoint(x: 12.6, y: 6.4))
+            cradle.addLine(to: CGPoint(x: 13.8, y: 3.4))
+            cradle.closeSubpath()
+            ctx.addPath(cradle)
+            ctx.fillPath()
+            // A thin gap around the ball keeps it distinct from the cradle.
+            let center = CGPoint(x: 9, y: 11)
+            let radius: CGFloat = 5.9
+            ctx.setBlendMode(.clear)
+            ctx.fillEllipse(in: CGRect(x: center.x - radius - 1, y: center.y - radius - 1, width: (radius + 1) * 2, height: (radius + 1) * 2))
+            ctx.setBlendMode(.normal)
+            if filled {
+                ctx.fillEllipse(in: CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2))
+                ctx.setBlendMode(.clear)   // the shine is cut out of the solid ball
+            } else {
+                ctx.setLineWidth(1.5)
+                ctx.strokeEllipse(in: CGRect(x: center.x - radius + 0.75, y: center.y - radius + 0.75,
+                                             width: (radius - 0.75) * 2, height: (radius - 0.75) * 2))
+            }
+            // Shine: a short arc in the upper left.
+            ctx.setLineWidth(1.3)
+            ctx.setLineCap(.round)
+            ctx.addArc(center: center, radius: radius - 2.6, startAngle: .pi * 0.58, endAngle: .pi * 0.92, clockwise: false)
+            ctx.strokePath()
+            ctx.setBlendMode(.normal)
+            return true
+        }
+        image.isTemplate = true
+        return image
     }
 }

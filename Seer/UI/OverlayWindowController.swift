@@ -52,6 +52,12 @@ final class OverlayPanel: NSPanel {
     /// The chat field's text view turns Esc into autocomplete instead of passing it on,
     /// so catch it before it reaches the field.
     override func sendEvent(_ event: NSEvent) {
+        // becomesKeyOnlyIfNeeded only takes focus for text fields, so a click on the answer or a
+        // button left ⌘W and Esc going to the app behind. Any click takes keyboard focus instead
+        // (the panel is non-activating, so the app the user is in stays active).
+        if [.leftMouseDown, .rightMouseDown, .otherMouseDown].contains(event.type), !isKeyWindow {
+            makeKey()
+        }
         if event.type == .keyDown, event.keyCode == 53,
            event.modifierFlags.intersection([.command, .option, .control, .shift]).isEmpty {
             onClose?()

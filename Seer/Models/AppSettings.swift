@@ -64,6 +64,7 @@ nonisolated struct KeyShortcut: Codable, Hashable, Sendable, GlobalShortcut {
     static let defaultOverlay = KeyShortcut(keyCode: 49, carbonModifiers: CarbonModifier.control | CarbonModifier.option, keyName: "Space")
     static let defaultReset = KeyShortcut(keyCode: 15, carbonModifiers: CarbonModifier.control | CarbonModifier.option, keyName: "R")
     static let defaultSolve = KeyShortcut(keyCode: 1, carbonModifiers: CarbonModifier.control | CarbonModifier.option, keyName: "S")
+    static let defaultMonitor = KeyShortcut(keyCode: 46, carbonModifiers: CarbonModifier.control | CarbonModifier.option, keyName: "M")
 
     var label: String {
         var glyphs = ""
@@ -202,6 +203,7 @@ final class AppSettings {
     var overlayShortcut: KeyShortcut { didSet { store(overlayShortcut, "overlayHotKey") } }
     var resetShortcut: KeyShortcut { didSet { store(resetShortcut, "resetHotKey") } }
     var solveShortcut: KeyShortcut { didSet { store(solveShortcut, "solveHotKey") } }
+    var monitorShortcut: KeyShortcut { didSet { store(monitorShortcut, "monitorHotKey") } }
     var explanationExpanded: Bool { didSet { defaults.set(explanationExpanded, forKey: "explanationExpanded") } }
     var captureScope: CaptureScope { didSet { defaults.set(captureScope.rawValue, forKey: "captureScope") } }
     var displayTarget: DisplayTarget { didSet { defaults.set(displayTarget.rawValue, forKey: "displayTarget") } }
@@ -269,6 +271,7 @@ final class AppSettings {
         overlayShortcut = shortcut("overlayHotKey", .defaultOverlay)
         resetShortcut = shortcut("resetHotKey", .defaultReset)
         solveShortcut = shortcut("solveHotKey", .defaultSolve)
+        monitorShortcut = shortcut("monitorHotKey", .defaultMonitor)
         explanationExpanded = value("explanationExpanded", true)
         captureScope = raw("captureScope", .frontmostWindow)
         displayTarget = raw("displayTarget", .underMouse)
