@@ -134,7 +134,45 @@ struct MarkdownText: View {
     static func inline(_ string: String) -> AttributedString {
         let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace,
                                                               failurePolicy: .returnPartiallyParsedIfPossible)
+        let string = plainMath(string)
         return (try? AttributedString(markdown: string, options: options)) ?? AttributedString(string)
+    }
+
+    private static let latexSymbols: [(String, String)] = [
+        ("times", "×"), ("cdot", "·"), ("div", "÷"), ("implies", "⇒"), ("Rightarrow", "⇒"), ("rightarrow", "→"),
+        ("to", "→"), ("leq", "≤"), ("le", "≤"), ("geq", "≥"), ("ge", "≥"), ("neq", "≠"), ("ne", "≠"),
+        ("approx", "≈"), ("pm", "±"), ("sqrt", "√"), ("pi", "π"), ("infty", "∞"), ("degree", "°"),
+        ("left", ""), ("right", ""), ("quad", " "), (",", " "),
+    ]
+    private static let mathSpan = try! NSRegularExpression(pattern: #"\$\$?([^$\n]+?)\$\$?"#)
+    private static let fraction = try! NSRegularExpression(pattern: #"\\[dt]?frac\{([^{}]*)\}\{([^{}]*)\}"#)
+    private static let textCommand = try! NSRegularExpression(pattern: #"\\(?:text|mathrm|mathbf)\{([^{}]*)\}"#)
+
+    /// The overlay can't typeset LaTeX, so turn the math models sometimes send anyway
+    /// ("$25 \times 7 = 175$") into plain text with Unicode symbols ("25 × 7 = 175").
+    /// Dollar amounts ("$5 and $10") are left alone: a $…$ span only counts as math if it has math in it.
+    static func plainMath(_ string: String) -> String {
+        guard string.contains("$") || string.contains("\\") else { return string }
+        func replace(_ regex: NSRegularExpression, in s: String, _ transform: ([String]) -> String?) -> String {
+            var result = s
+            for match in regex.matches(in: s, range: NSRange(s.startIndex..., in: s)).reversed() {
+                let groups = (0..<match.numberOfRanges).map { Range(match.range(at: $0), in: s).map { String(s[$0]) } ?? "" }
+                if let replacement = transform(groups), let range = Range(match.range, in: result) {
+                    result.replaceSubrange(range, with: replacement)
+                }
+            }
+            return result
+        }
+        var s = replace(mathSpan, in: string) { groups in
+            groups[1].contains(where: { "=\\^_+<>×÷".contains($0) }) ? groups[1] : nil
+        }
+        s = replace(fraction, in: s) { "\($0[1])/\($0[2])" }
+        s = replace(textCommand, in: s) { $0[1] }
+        for (command, symbol) in latexSymbols {
+            s = s.replacingOccurrences(of: NSRegularExpression.escapedPattern(for: "\\" + command) + "(?![A-Za-z])", with: symbol,
+                                      options: .regularExpression)
+        }
+        return s.replacingOccurrences(of: #"\\[()\[\]]"#, with: "", options: .regularExpression)
     }
 }
 

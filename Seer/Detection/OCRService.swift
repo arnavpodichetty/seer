@@ -51,12 +51,28 @@ actor OCRService {
         }))
     }
 
+    private static let recognitionLanguages: [String] = {
+        let supported = (try? VNRecognizeTextRequest().supportedRecognitionLanguages()) ?? ["en-US"]
+        var languages: [String] = []
+        for preferred in Locale.preferredLanguages + ["en-US"] {
+            let match = supported.first { $0 == preferred }
+                ?? supported.first { $0.split(separator: "-").first == preferred.split(separator: "-").first }
+            if let match, !languages.contains(match) { languages.append(match) }
+        }
+        return languages
+    }()
+
     private static func runVision(on image: CGImage) throws -> OCRResult {
         let request = VNRecognizeTextRequest()
         request.recognitionLevel = .accurate
         request.usesLanguageCorrection = true
-        request.automaticallyDetectsLanguage = true
-        let handler = VNImageRequestHandler(cgImage: image, options: [:])
+        // Automatic detection sometimes picks Chinese for short math lines, which turns
+        // "8 ÷ 2(2 + 2) = ?" into "8-2（2+2）=？". Use the user's languages, plus English.
+        request.automaticallyDetectsLanguage = false
+        request.recognitionLanguages = recognitionLanguages
+        // Vision drops whole lines on some full-resolution Retina captures (2880 px wide) that it reads
+        // fine slightly smaller; 2560 px keeps small text legible on large displays.
+        let handler = VNImageRequestHandler(cgImage: ImageUtilities.downsample(image, maxDimension: 2560), options: [:])
         do {
             try handler.perform([request])
         } catch {

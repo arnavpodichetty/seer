@@ -95,4 +95,13 @@ struct FormattingTests {
         #expect(bare.contains("screenshot"))
         #expect(!bare.contains("Question currently on screen"))
     }
+
+    @Test func latexBecomesPlainMath() {
+        #expect(MarkdownText.plainMath(#"Find $A \times B$: $25 \times 7 = 175$"#) == "Find A × B: 25 × 7 = 175")
+        #expect(MarkdownText.plainMath(#"$2A = 50 \implies A = 25$"#) == "2A = 50 ⇒ A = 25")
+        #expect(MarkdownText.plainMath(#"$\frac{1}{2} \leq x$"#) == "1/2 ≤ x")
+        #expect(MarkdownText.plainMath("It costs $5 and $10 later.") == "It costs $5 and $10 later.")
+        #expect(MarkdownText.plainMath("No math here.") == "No math here.")
+    }
 }
+

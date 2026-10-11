@@ -153,7 +153,7 @@ nonisolated struct QuestionDetector {
         // stand alone so page furniture (tabs, AI summaries) never joins them.
         let anchorText = anchorRows.map(\.text).joined(separator: " ")
         let invitesChoices = anchorText.contains("?") || Self.matches(anchorText, Patterns.whichOfTheFollowing)
-            || Self.matches(anchorText, Patterns.choiceInstruction)
+            || anchorRows.contains { Self.matches($0.text, Patterns.choiceInstruction) }
         var j = i + 1
         var appended = 0
         while j < blocks.count, appended < 4, rows.count < configuration.maxCandidateRows {
@@ -162,7 +162,7 @@ nonisolated struct QuestionDetector {
             if next.box.minY - bottom > medianHeight * 3.5 { break }
             if next.rows.contains(where: { Self.isNamedHeader($0.text) }) { break }
             if isInterviewPrompt { break }
-            let structured = next.rows.contains { Self.isOption($0.text) || Self.isCodeLike($0.text) }
+            let structured = next.rows.contains { Self.isOption($0.text) || Self.isCodeLike($0.text) || Self.matches($0.text.lowercased(), Patterns.likert) }
             let shortChoices = invitesChoices && next.rows.count <= 6 && next.rows.allSatisfy { $0.text.count <= 80 }
             guard structured || shortChoices else { break }
             rows += next.rows
@@ -221,7 +221,10 @@ nonisolated struct QuestionDetector {
         let paragraph = proseRows.map(\.text).joined(separator: " ")
         let sentences = joinWrappedRows(proseRows.map(\.text)).flatMap(splitSentences)
         // Sentence starts: each sentence, plus each row (headings/prompts often lack punctuation).
-        let starts = sentences + proseRows.map(\.text)
+        // Side-by-side panes share a row ("EXPLORER | Problem: Write…"), so each cell can start a sentence too.
+        let starts = sentences + proseRows.flatMap { row in
+            [row.text] + (row.text.contains(" | ") ? row.text.components(separatedBy: " | ") : [])
+        }
 
         var questionSentences = 0
         var interrogative = false
@@ -248,7 +251,18 @@ nonisolated struct QuestionDetector {
             if matches(start, Patterns.choiceInstruction) { imperative = true; task = true }
         }
 
-        var options = rows.filter { isOption($0.text) }.map(\.text)
+        let cells = rows.flatMap { $0.text.components(separatedBy: " | ") }
+        var options = cells.filter { isOption($0) }
+        let likert = matches(lower, Patterns.likert)
+        if likert, options.count < 2 {
+            options = cells.filter { matches($0.lowercased(), Patterns.likertAnchor) }
+        }
+        // "Choose the statement most like you" + a list of plain statements: the statements are the choices.
+        let choiceRows = anchorRows.map { anchors in rows.dropFirst(anchors.count) } ?? []
+        if options.count < 2, starts.contains(where: { matches($0, Patterns.choiceInstruction) }),
+           choiceRows.count >= 2, choiceRows.allSatisfy({ $0.text.count <= 120 && !isCodeLike($0.text) }) {
+            options = choiceRows.map(\.text)
+        }
         let rowTexts = Set(rows.map { $0.text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters)) })
         if options.count < 2, rowTexts.contains("true"), rowTexts.contains("false") { options = ["True", "False"] }
         let whichOfFollowing = matches(lower, Patterns.whichOfTheFollowing)
@@ -259,12 +273,14 @@ nonisolated struct QuestionDetector {
         let isProgramming = count(lower, Patterns.programming) >= 2 || (codeRows >= 2 && codeRows < rows.count)
         let mathSymbols = count(text, Patterns.mathSymbols)
         let isMath = mathSymbols >= 2 || (count(lower, Patterns.mathWords) >= 1 && text.contains(where: \.isNumber))
-        let isBareEquation = rows.count <= 3 && mathSymbols >= 3 && text.contains("=") && codeRows == 0
+        let asksForValue = matches(text, Patterns.equalsQuestion)
+        let isBareEquation = rows.count <= 5 && text.contains("=") && codeRows == 0 && (mathSymbols >= 3 || (asksForValue && mathSymbols >= 2))
+        if !imperative, mathSymbols >= 1, starts.contains(where: { matches($0, Patterns.mathVerbStart) }) { imperative = true; task = true }
         let isLogic = count(lower, Patterns.logic) >= 1
         let visualHits = count(lower, Patterns.visual)
         let geometry = count(text, Patterns.geometry) >= 1
 
-        let anchored = questionSentences > 0 || imperative || interview
+        let anchored = questionSentences > 0 || imperative || interview || (likert && options.count >= 2)
         guard anchored || isBareEquation else { return none }
 
         var score = 0.0
@@ -274,6 +290,7 @@ nonisolated struct QuestionDetector {
         if !anchored && isBareEquation { score += 2.5 }
         if rows.contains(where: { isNamedHeader($0.text) }) { score += 1.0 }
         if options.count >= 2 { score += 2.0 }
+        if likert && options.count >= 2 { score += 1.5 }
         if whichOfFollowing { score += 1.0 }
         if isSQL || isProgramming || isMath { score += 0.5 }
         if isLogic { score += 0.5 }
@@ -493,16 +510,20 @@ nonisolated struct QuestionDetector {
     enum Patterns {
         static let interrogativeStart = regex(#"^\s*(\d+[.)]\s*)?(what|which|who|whom|whose|when|where|why|how|is|are|does|do|did|can|could|should|would|will|was|were|has|have)\b"#)
         /// Sentence-initial task verbs, optionally after "3." / "a)" / "Q2:".
-        static let imperativeStart = regex(#"^\s*(?:(?:\d{1,3}|[a-h])[.)]\s+|q\d*[.:)]\s*)?(solve|find|calculate|compute|evaluate|determine|simplify|factor|factori[sz]e|expand|differentiate|integrate|prove|show that|implement|write|derive|estimate|convert|rewrite|explain|describe|compare|contrast|define|justify|discuss|summari[sz]e|analy[sz]e|translate|given|you are given|you're given|design|tell|introduce|walk)\b"#)
+        static let imperativeStart = regex(#"^\s*(?:(?:\d{1,3}|[a-h])[.)]\s+|q\d*[.:)]\s*|(?:problem|question|task|exercise)\s*\d*\s*[.:]\s*)?(complete the|solve|find|calculate|compute|evaluate|determine|simplify|factor|factori[sz]e|expand|differentiate|integrate|prove|show that|implement|write|derive|estimate|convert|rewrite|explain|describe|compare|contrast|define|justify|discuss|summari[sz]e|analy[sz]e|translate|given|you are given|you're given|design|tell|introduce|walk|give)\b"#)
         static let academicStart = regex(#"^\s*(?:(?:\d{1,3}|[a-h])[.)]\s+)?(explain|describe|compare|contrast|define|justify|discuss|summari[sz]e|analy[sz]e|prove|derive|evaluate)\b"#)
-        static let task = regex(#"\bwrite (a|an|the)?\s*(sql|query|function|program|method|class|script|algorithm|code|proof|essay|paragraph|equation|regex|regular expression)|\b(solve|find|calculate|compute|evaluate|determine|simplify)\b.*(\d|=|\bx\b|value|angle|area|sum|probability|derivative|integral|equation|length|perimeter|volume|limit|roots?|average|mean)|\bgiven (an?|the|two|some) (array|string|list|integer|tree|graph|number|matrix|binary|linked|table|set|sequence|function)|\bimplement (a|an|the)\b"#)
-        static let choiceInstruction = regex(#"^\s*(select|choose|pick|identify|mark|circle) (the |all |one |an? )?(correct|best|right|true|false|most|least|following|answer|option|statement)"#)
-        static let interview = regex(#"\b(tell (me|us) (a (little|bit) )?(about|more about) (yourself|a time|an? (time|situation|experience|project|challenge|mistake|failure|conflict|accomplishment|achievement))|introduce yourself|walk (me|us) through (your|a|how)|describe (a|an) (time|situation|experience|project|challenge|moment|instance|occasion)|give (me |us )?an example of (a time|when|how)|share an? (experience|example|time|story)|why do you want (to|this)|why should we hire you|why (are you|would you be) (interested|a good fit)|what are your (greatest )?(strengths|weaknesses)|what is your (greatest )?(strength|weakness)|where do you see yourself|what motivates you|how do you (handle|deal with|prioriti[sz]e|manage)|how would you (handle|deal with|approach)|what interests you about|why are you leaving|what (are|is) your (career goals|salary expectations|biggest (achievement|accomplishment))|what makes you (a good fit|unique|qualified)|have you ever (had to|faced|dealt with|disagreed)|tell (me|us) about your (background|experience|biggest))\b"#)
+        static let task = regex(#"\bwrite (a|an|the)?\s*(sql|query|function|program|method|class|script|algorithm|code|proof|essay|paragraph|equation|regex|regular expression|solution)|\bcomplete the \w+ function|\b(solve|find|calculate|compute|evaluate|determine|simplify)\b.*(\d|=|\bx\b|value|angle|area|sum|probability|derivative|integral|equation|length|perimeter|volume|limit|roots?|average|mean)|\bgiven (an?|the|two|some) (array|string|list|integer|tree|graph|number|matrix|binary|linked|table|set|sequence|function)|\bimplement (a|an|the)\b"#)
+        static let choiceInstruction = regex(#"^\s*(?:(select|choose|pick|identify|mark|circle|rank) (the |all |one |an? )?(correct|best|right|true|false|most|least|following|answer|option|statement|responses?)|true or false\b)"#)
+        static let likert = regex(#"strongly disagree[\s\S]*strongly agree|strongly agree[\s\S]*strongly disagree|\bdisagree\b[\s\S]*\bneutral\b[\s\S]*\bagree\b"#)
+        static let likertAnchor = regex(#"^\s*(strongly (dis)?agree|(dis)?agree|neutral|neither agree nor disagree|somewhat (dis)?agree)\s*$"#)
+        static let mathVerbStart = regex(#"^\s*(?:(?:\d{1,3}|[a-h])[.)]\s+)?(evaluate|simplify|solve|compute|calculate|find|factor|expand|differentiate|integrate)\b"#)
+        static let equalsQuestion = regex(#"=\s*\?"#)
+        static let interview = regex(#"\b(tell (me|us) (a (little|bit) )?(about|more about) (yourself|a time|an? (time|situation|experience|project|challenge|mistake|failure|conflict|accomplishment|achievement))|introduce yourself|walk (me|us) through (your|a|how)|describe (a|an) (time|situation|experience|project|challenge|moment|instance|occasion)|give (me |us )?an example of|describe how you (would|have|did|handle|approach|manage)|what did you learn from|share an? (experience|example|time|story)|why do you want (to|this)|why should we hire you|why (are you|would you be) (interested|a good fit)|what are your (greatest )?(strengths|weaknesses)|what is your (greatest )?(strength|weakness)|where do you see yourself|what motivates you|how do you (handle|deal with|prioriti[sz]e|manage)|how would you (handle|deal with|approach)|what interests you about|why are you leaving|what (are|is) your (career goals|salary expectations|biggest (achievement|accomplishment))|what makes you (a good fit|unique|qualified)|have you ever (had to|faced|dealt with|disagreed)|tell (me|us) about your (background|experience|biggest))\b"#)
         static let whichOfTheFollowing = regex(#"which (one )?of the (following|options|choices|statements)"#)
         static let namedHeader = regex(#"^\s*(question|q|problem|exercise|task|quiz|practice|example)\s*#?\s*\d+\b"#)
         static let numberedItem = regex(#"^\s*\d{1,3}[.)]\s+\S"#)
         /// Answer choices: "A)", "(b)", "c.", "(1)", "2)", or radio/checkbox glyphs. Plain "•" bullets are lists, not choices.
-        static let option = regex(#"^\s*(\(?[A-Ha-h][).:]|\([A-Ha-h]\)|\(?[1-8]\)|[○◯●◉☐□■◻⚪])\s*\S"#)
+        static let option = regex(#"^\s*(?:[•○◯●◉o]\s+)?(\(?[A-Ha-h][).:]|\([A-Ha-h]\)|\(?[1-8]\)|[○◯●◉☐□■◻⚪])\s*\S"#)
         static let sqlStrong = regex(#"\b(sql|query|queries|select\b[\s\S]{1,200}\bfrom|group by|order by|inner join|left join|join|create table|primary key|foreign key)\b"#)
         static let sqlWeak = regex(#"\b(table|tables|column|columns|rows|database|schema|where|having|count\(|sum\(|avg\()"#)
         static let programming = regex(#"\b(function|algorithm|array|string|integer|linked list|binary tree|hash ?map|input|output|constraints|example \d|time complexity|space complexity|python|java|javascript|typescript|c\+\+|swift|rust|golang|code|program|implement|recursion|recursive|nums|stack|queue|o\(n)"#)

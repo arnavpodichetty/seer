@@ -53,6 +53,8 @@ nonisolated enum PromptBuilder {
         - Multiple choice: the answer must name the option letter/number and its text, e.g. "(B) 42".
         - Code and SQL: put a complete, working solution in a fenced code block with a language tag inside the Answer section.
         - Math: give the final value in the Answer; show key calculations in the Explanation.
+        - Work the problem out completely before writing the Answer line; the Answer must match the result the Explanation reaches. The Explanation is a clean worked solution, not scratch work: no "wait", re-checks, or corrections.
+        - Write math as plain text with Unicode symbols (×, ÷, −, ², √, ≤, ⇒). Never use LaTeX or $ delimiters; the display can't render them.
         - If information is missing, cut off, or unreadable, say so, state your assumptions, and lower your confidence. Never invent labels, numbers, or options.
         - Formatting: a short answer stays on one line. Longer answers and explanations use short Markdown headings ("### Heading") with concise text or bullets under each.
         - Prefer correctness over confidence. Be concise; no preamble.
@@ -234,7 +236,8 @@ nonisolated enum PromptBuilder {
     static func geminiThinkingLevel(kind: QuestionKind, preference: SpeedPreference) -> String {
         switch preference {
         case .faster: "low"
-        case .balanced: [.math, .logic, .programming, .sql].contains(kind) ? "medium" : "low"
+        // Picture-only questions are usually math or logic puzzles, so they get to think too.
+        case .balanced: [.math, .logic, .programming, .sql, .visual].contains(kind) ? "medium" : "low"
         case .thorough: "high"
         }
     }
@@ -244,7 +247,7 @@ nonisolated enum PromptBuilder {
         switch preference {
         case .faster: false
         case .thorough: true
-        case .balanced: [.math, .logic, .programming, .sql].contains(kind)
+        case .balanced: [.math, .logic, .programming, .sql, .visual].contains(kind)
         }
     }
 }

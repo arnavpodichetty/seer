@@ -298,4 +298,56 @@ struct QuestionDetectorTests {
         #expect(q.text.contains("return indices of the two"))
         #expect(!q.text.contains("Constraints"))
     }
+
+    // Screens from the evaluation corpus (HireVue, IBM, LeetCode, HackerRank, personality tests).
+
+    @Test(arguments: [
+        "In 2 minutes, describe how you would prioritize several competing deadlines from different managers.",
+        "Give an example of a goal you didn't meet and what you learned from it.",
+    ])
+    func interviewPhrasingsAreDetected(_ prompt: String) throws {
+        let q = try #require(QuestionDetector().detect(page(["Question 4 of 4", "", prompt, "", "Think time 0:30"])).question)
+        #expect(q.kind == .interview)
+    }
+
+    @Test func mostLeastStatementsBecomeOptions() throws {
+        let q = try #require(QuestionDetector().detect(page([
+            "Workplace Preferences Questionnaire • Page 3 of 12",
+            "Choose the statement that is MOST like you and the one that is LEAST like you.", "Most Statement | Least", "",
+            "I like to have a detailed plan before starting work", "", "I enjoy persuading others to see my point of view", "",
+            "I stay calm when things go wrong", "", "I prefer to work on one task at a time",
+        ])).question)
+        #expect(q.kind == .multipleChoice)
+        #expect(q.options.count == 4)
+    }
+
+    @Test func likertItemIsAQuestion() throws {
+        let q = try #require(QuestionDetector().detect(page([
+            "Item 14 of 60", "I prefer to finish one project completely before starting another.", "",
+            "Strongly disagree | Disagree | Neutral | Agree | Strongly agree",
+        ])).question)
+        #expect(q.kind == .multipleChoice)
+        #expect(q.options.contains("Strongly agree"))
+    }
+
+    @Test(arguments: [["Evaluate: 3 x 42 - 18 ÷ 3"], ["(-3)2 - 32 = ?"],
+                      ["True or False: Sound travels faster in water than in air.", "• True", "• False"]])
+    func shortPromptsAreDetected(_ lines: [String]) {
+        #expect(QuestionDetector().detect(page(lines)).question != nil)
+    }
+
+    @Test func labeledProblemBesideASidebarIsDetected() throws {
+        let q = try #require(QuestionDetector().detect(page([
+            "EXPLORER | Problem: Write a function second_largest(nums) that returns the second",
+            "• TAKE-HOME | largest DISTINCT value in a list of integers, or None if it doesn't exist.",
+        ])).question)
+        #expect(q.kind == .programming)
+    }
+
+    @Test func radioGlyphsBeforeLettersAreOptions() {
+        #expect(QuestionDetector.isOption("• A) 3 True"))
+        #expect(QuestionDetector.isOption("o B) 4 True"))
+        #expect(!QuestionDetector.isOption("• a bullet point"))
+    }
 }
+
