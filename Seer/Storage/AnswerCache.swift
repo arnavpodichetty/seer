@@ -20,7 +20,7 @@ actor AnswerCache {
     }
 
     static var defaultDirectory: URL? {
-        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?.appending(path: "ScreenPilot")
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?.appending(path: "Seer")
     }
 
     func lookup(_ fingerprint: QuestionFingerprint) -> AnswerRecord? {

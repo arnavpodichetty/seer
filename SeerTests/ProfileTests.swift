@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import ScreenPilot
+@testable import Seer
 
 @Suite("User context") @MainActor
 struct ProfileTests {

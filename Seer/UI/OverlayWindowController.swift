@@ -3,7 +3,7 @@ import SwiftUI
 
 /// Non-activating floating panel: it shows above other windows without taking focus
 /// from the app the user is working in. It uses normal window-sharing behavior and is
-/// visible to screenshots and screen recording like any other window; ScreenPilot only
+/// visible to screenshots and screen recording like any other window; Seer only
 /// leaves it out of *its own* captures through the ScreenCaptureKit content filter.
 final class OverlayPanel: NSPanel {
     override var canBecomeKey: Bool { true }   // only when the user clicks text, via becomesKeyOnlyIfNeeded
@@ -89,7 +89,7 @@ final class OverlayWindowController: NSObject, NSWindowDelegate {
         state.isOverlayVisible = true
     }
 
-    /// Lets the chat field receive typing without activating ScreenPilot or switching apps.
+    /// Lets the chat field receive typing without activating Seer or switching apps.
     func focusForTyping() {
         guard let panel, panel.isVisible else { return }
         panel.makeKey()
@@ -173,7 +173,7 @@ final class OverlayWindowController: NSObject, NSWindowDelegate {
         panel.hasShadow = true
         panel.isReleasedWhenClosed = false
         // Stay visible to screenshots, screen sharing and recording/proctoring tools like
-        // any normal window. ScreenPilot excludes the overlay from its *own* captures via
+        // any normal window. Seer excludes the overlay from its *own* captures via
         // the ScreenCaptureKit content filter instead.
         panel.sharingType = .readOnly
         panel.contentMinSize = Self.minimumSize

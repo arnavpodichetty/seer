@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import ScreenPilot
+@testable import Seer
 
 @Suite("Question fingerprinting")
 struct QuestionFingerprintTests {

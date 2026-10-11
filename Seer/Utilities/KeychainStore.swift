@@ -4,9 +4,9 @@ import Security
 /// Stores secrets (the Gemini and Groq API keys) in the login Keychain rather than in
 /// UserDefaults or source code.
 nonisolated enum KeychainStore {
-    static let geminiService = "ScreenPilot.GeminiAPIKey"
-    static let groqService = "ScreenPilot.GroqAPIKey"
-    static let customService = "ScreenPilot.CustomAPIKey"
+    static let geminiService = "Seer.GeminiAPIKey"
+    static let groqService = "Seer.GroqAPIKey"
+    static let customService = "Seer.CustomAPIKey"
     static let account = "default"
 
     static func read(service: String = geminiService) -> String? {
@@ -37,7 +37,7 @@ nonisolated enum KeychainStore {
         guard !trimmed.isEmpty else { return true }
         var attributes = base
         attributes[kSecValueData as String] = Data(trimmed.utf8)
-        attributes[kSecAttrLabel as String] = "ScreenPilot API key (\(service))"
+        attributes[kSecAttrLabel as String] = "Seer API key (\(service))"
         return SecItemAdd(attributes as CFDictionary, nil) == errSecSuccess
     }
 }

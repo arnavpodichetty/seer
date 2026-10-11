@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 import Testing
-@testable import ScreenPilot
+@testable import Seer
 
 @Suite("Gemini provider", .serialized)
 struct GeminiTests {
@@ -118,8 +118,8 @@ struct GeminiTests {
 }
 
 /// Calls the real Gemini API with the key from the Keychain. Opt-in:
-/// TEST_RUNNER_SCREENPILOT_LIVE=1 xcodebuild test …
-@Suite("Gemini live", .enabled(if: ProcessInfo.processInfo.environment["SCREENPILOT_LIVE"] != nil))
+/// TEST_RUNNER_SEER_LIVE=1 xcodebuild test …
+@Suite("Gemini live", .enabled(if: ProcessInfo.processInfo.environment["SEER_LIVE"] != nil))
 struct GeminiLiveTests {
     @Test func answersInterviewPromptWithProfile() async throws {
         let key = try #require(KeychainStore.read())

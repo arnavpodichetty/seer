@@ -49,7 +49,7 @@ nonisolated enum CaptureError: LocalizedError {
 
 /// Takes single, downscaled screenshots with ScreenCaptureKit. Uses one-shot
 /// `SCScreenshotManager` captures instead of a continuous stream, which is far cheaper
-/// at the ~0.5 Hz rate ScreenPilot needs and leaves no stream to tear down.
+/// at the ~0.5 Hz rate Seer needs and leaves no stream to tear down.
 actor ScreenCaptureManager {
     func capture(_ request: CaptureRequest) async throws -> CaptureOutcome {
         if request.secureInputActive {
@@ -122,7 +122,7 @@ actor ScreenCaptureManager {
         ))
     }
 
-    /// Full-display filter that never includes ScreenPilot's own overlay or settings
+    /// Full-display filter that never includes Seer's own overlay or settings
     /// windows (so answers are never fed back into OCR or the vision model) and drops
     /// excluded apps. Window-mode captures need no extra handling: a
     /// desktop-independent window capture contains only that window's own pixels.
@@ -135,7 +135,7 @@ actor ScreenCaptureManager {
         if excludedApps.contains(where: isOwn) {
             return SCContentFilter(display: display, excludingApplications: excludedApps, exceptingWindows: [])
         }
-        // Fallback: ScreenPilot wasn't listed as an application, so exclude its windows
+        // Fallback: Seer wasn't listed as an application, so exclude its windows
         // (and excluded apps' windows) one by one.
         let excludedWindows = content.windows.filter { window in
             isOwn(window.owningApplication)

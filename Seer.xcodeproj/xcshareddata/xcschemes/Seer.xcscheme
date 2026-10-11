@@ -16,8 +16,8 @@
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "4734929F307B1AEE00CDFEDB"
                BuildableName = "Seer.app"
-               BlueprintName = "ScreenPilot"
-               ReferencedContainer = "container:ScreenPilot.xcodeproj">
+               BlueprintName = "Seer"
+               ReferencedContainer = "container:Seer.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -34,9 +34,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "4734B006307B1AEE00CDFEDB"
-               BuildableName = "ScreenPilotTests.xctest"
-               BlueprintName = "ScreenPilotTests"
-               ReferencedContainer = "container:ScreenPilot.xcodeproj">
+               BuildableName = "SeerTests.xctest"
+               BlueprintName = "SeerTests"
+               ReferencedContainer = "container:Seer.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -57,8 +57,8 @@
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "4734929F307B1AEE00CDFEDB"
             BuildableName = "Seer.app"
-            BlueprintName = "ScreenPilot"
-            ReferencedContainer = "container:ScreenPilot.xcodeproj">
+            BlueprintName = "Seer"
+            ReferencedContainer = "container:Seer.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -74,8 +74,8 @@
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "4734929F307B1AEE00CDFEDB"
             BuildableName = "Seer.app"
-            BlueprintName = "ScreenPilot"
-            ReferencedContainer = "container:ScreenPilot.xcodeproj">
+            BlueprintName = "Seer"
+            ReferencedContainer = "container:Seer.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

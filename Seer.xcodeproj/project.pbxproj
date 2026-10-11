@@ -12,25 +12,25 @@
 			containerPortal = 47349298307B1AEE00CDFEDB /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 4734929F307B1AEE00CDFEDB;
-			remoteInfo = ScreenPilot;
+			remoteInfo = Seer;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		473492A0307B1AEE00CDFEDB /* Seer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Seer.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		4734B001307B1AEE00CDFEDB /* ScreenPilotTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ScreenPilotTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		4734B001307B1AEE00CDFEDB /* SeerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SeerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		4734C001307B1AEE00CDFEDB /* Seer.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Seer.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		473492A2307B1AEE00CDFEDB /* ScreenPilot */ = {
+		473492A2307B1AEE00CDFEDB /* Seer */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = ScreenPilot;
+			path = Seer;
 			sourceTree = "<group>";
 		};
-		4734B002307B1AEE00CDFEDB /* ScreenPilotTests */ = {
+		4734B002307B1AEE00CDFEDB /* SeerTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = ScreenPilotTests;
+			path = SeerTests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -53,8 +53,8 @@
 			isa = PBXGroup;
 			children = (
 				4734C001307B1AEE00CDFEDB /* Seer.xcconfig */,
-				473492A2307B1AEE00CDFEDB /* ScreenPilot */,
-				4734B002307B1AEE00CDFEDB /* ScreenPilotTests */,
+				473492A2307B1AEE00CDFEDB /* Seer */,
+				4734B002307B1AEE00CDFEDB /* SeerTests */,
 				473492A1307B1AEE00CDFEDB /* Products */,
 			);
 			sourceTree = "<group>";
@@ -63,7 +63,7 @@
 			isa = PBXGroup;
 			children = (
 				473492A0307B1AEE00CDFEDB /* Seer.app */,
-				4734B001307B1AEE00CDFEDB /* ScreenPilotTests.xctest */,
+				4734B001307B1AEE00CDFEDB /* SeerTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -71,9 +71,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		4734929F307B1AEE00CDFEDB /* ScreenPilot */ = {
+		4734929F307B1AEE00CDFEDB /* Seer */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 473492AB307B1AEF00CDFEDB /* Build configuration list for PBXNativeTarget "ScreenPilot" */;
+			buildConfigurationList = 473492AB307B1AEF00CDFEDB /* Build configuration list for PBXNativeTarget "Seer" */;
 			buildPhases = (
 				4734929C307B1AEE00CDFEDB /* Sources */,
 				4734929D307B1AEE00CDFEDB /* Frameworks */,
@@ -82,16 +82,16 @@
 			buildRules = (
 			);
 			fileSystemSynchronizedGroups = (
-				473492A2307B1AEE00CDFEDB /* ScreenPilot */,
+				473492A2307B1AEE00CDFEDB /* Seer */,
 			);
-			name = ScreenPilot;
-			productName = ScreenPilot;
+			name = Seer;
+			productName = Seer;
 			productReference = 473492A0307B1AEE00CDFEDB /* Seer.app */;
 			productType = "com.apple.product-type.application";
 		};
-		4734B006307B1AEE00CDFEDB /* ScreenPilotTests */ = {
+		4734B006307B1AEE00CDFEDB /* SeerTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 4734B009307B1AEE00CDFEDB /* Build configuration list for PBXNativeTarget "ScreenPilotTests" */;
+			buildConfigurationList = 4734B009307B1AEE00CDFEDB /* Build configuration list for PBXNativeTarget "SeerTests" */;
 			buildPhases = (
 				4734B003307B1AEE00CDFEDB /* Sources */,
 				4734B004307B1AEE00CDFEDB /* Frameworks */,
@@ -103,11 +103,11 @@
 				4734B008307B1AEE00CDFEDB /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				4734B002307B1AEE00CDFEDB /* ScreenPilotTests */,
+				4734B002307B1AEE00CDFEDB /* SeerTests */,
 			);
-			name = ScreenPilotTests;
-			productName = ScreenPilotTests;
-			productReference = 4734B001307B1AEE00CDFEDB /* ScreenPilotTests.xctest */;
+			name = SeerTests;
+			productName = SeerTests;
+			productReference = 4734B001307B1AEE00CDFEDB /* SeerTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
@@ -129,7 +129,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 4734929B307B1AEE00CDFEDB /* Build configuration list for PBXProject "ScreenPilot" */;
+			buildConfigurationList = 4734929B307B1AEE00CDFEDB /* Build configuration list for PBXProject "Seer" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -143,8 +143,8 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				4734929F307B1AEE00CDFEDB /* ScreenPilot */,
-				4734B006307B1AEE00CDFEDB /* ScreenPilotTests */,
+				4734929F307B1AEE00CDFEDB /* Seer */,
+				4734B006307B1AEE00CDFEDB /* SeerTests */,
 			);
 		};
 /* End PBXProject section */
@@ -178,13 +178,13 @@
 /* Begin PBXTargetDependency section */
 		4734B008307B1AEE00CDFEDB /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 4734929F307B1AEE00CDFEDB /* ScreenPilot */;
+			target = 4734929F307B1AEE00CDFEDB /* Seer */;
 			targetProxy = 4734B007307B1AEE00CDFEDB /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		473492A9307B1AEF00CDFEDB /* Debug configuration for PBXProject "ScreenPilot" */ = {
+		473492A9307B1AEF00CDFEDB /* Debug configuration for PBXProject "Seer" */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 4734C001307B1AEE00CDFEDB /* Seer.xcconfig */;
 			buildSettings = {
@@ -248,7 +248,7 @@
 			};
 			name = Debug;
 		};
-		473492AA307B1AEF00CDFEDB /* Release configuration for PBXProject "ScreenPilot" */ = {
+		473492AA307B1AEF00CDFEDB /* Release configuration for PBXProject "Seer" */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 4734C001307B1AEE00CDFEDB /* Seer.xcconfig */;
 			buildSettings = {
@@ -305,7 +305,7 @@
 			};
 			name = Release;
 		};
-		473492AC307B1AEF00CDFEDB /* Debug configuration for PBXNativeTarget "ScreenPilot" */ = {
+		473492AC307B1AEF00CDFEDB /* Debug configuration for PBXNativeTarget "Seer" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -328,7 +328,7 @@
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = app.seer.Seer;
-				PRODUCT_MODULE_NAME = ScreenPilot;
+				PRODUCT_MODULE_NAME = Seer;
 				PRODUCT_NAME = Seer;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = macosx;
@@ -340,7 +340,7 @@
 			};
 			name = Debug;
 		};
-		473492AD307B1AEF00CDFEDB /* Release configuration for PBXNativeTarget "ScreenPilot" */ = {
+		473492AD307B1AEF00CDFEDB /* Release configuration for PBXNativeTarget "Seer" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -363,7 +363,7 @@
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = app.seer.Seer;
-				PRODUCT_MODULE_NAME = ScreenPilot;
+				PRODUCT_MODULE_NAME = Seer;
 				PRODUCT_NAME = Seer;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = macosx;
@@ -375,7 +375,7 @@
 			};
 			name = Release;
 		};
-		4734B00A307B1AEE00CDFEDB /* Debug configuration for PBXNativeTarget "ScreenPilotTests" */ = {
+		4734B00A307B1AEE00CDFEDB /* Debug configuration for PBXNativeTarget "SeerTests" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -395,7 +395,7 @@
 			};
 			name = Debug;
 		};
-		4734B00B307B1AEE00CDFEDB /* Release configuration for PBXNativeTarget "ScreenPilotTests" */ = {
+		4734B00B307B1AEE00CDFEDB /* Release configuration for PBXNativeTarget "SeerTests" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -418,27 +418,27 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		4734929B307B1AEE00CDFEDB /* Build configuration list for PBXProject "ScreenPilot" */ = {
+		4734929B307B1AEE00CDFEDB /* Build configuration list for PBXProject "Seer" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				473492A9307B1AEF00CDFEDB /* Debug configuration for PBXProject "ScreenPilot" */,
-				473492AA307B1AEF00CDFEDB /* Release configuration for PBXProject "ScreenPilot" */,
+				473492A9307B1AEF00CDFEDB /* Debug configuration for PBXProject "Seer" */,
+				473492AA307B1AEF00CDFEDB /* Release configuration for PBXProject "Seer" */,
 			);
 			defaultConfigurationName = Release;
 		};
-		473492AB307B1AEF00CDFEDB /* Build configuration list for PBXNativeTarget "ScreenPilot" */ = {
+		473492AB307B1AEF00CDFEDB /* Build configuration list for PBXNativeTarget "Seer" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				473492AC307B1AEF00CDFEDB /* Debug configuration for PBXNativeTarget "ScreenPilot" */,
-				473492AD307B1AEF00CDFEDB /* Release configuration for PBXNativeTarget "ScreenPilot" */,
+				473492AC307B1AEF00CDFEDB /* Debug configuration for PBXNativeTarget "Seer" */,
+				473492AD307B1AEF00CDFEDB /* Release configuration for PBXNativeTarget "Seer" */,
 			);
 			defaultConfigurationName = Release;
 		};
-		4734B009307B1AEE00CDFEDB /* Build configuration list for PBXNativeTarget "ScreenPilotTests" */ = {
+		4734B009307B1AEE00CDFEDB /* Build configuration list for PBXNativeTarget "SeerTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				4734B00A307B1AEE00CDFEDB /* Debug configuration for PBXNativeTarget "ScreenPilotTests" */,
-				4734B00B307B1AEE00CDFEDB /* Release configuration for PBXNativeTarget "ScreenPilotTests" */,
+				4734B00A307B1AEE00CDFEDB /* Debug configuration for PBXNativeTarget "SeerTests" */,
+				4734B00B307B1AEE00CDFEDB /* Release configuration for PBXNativeTarget "SeerTests" */,
 			);
 			defaultConfigurationName = Release;
 		};

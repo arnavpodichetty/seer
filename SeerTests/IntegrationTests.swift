@@ -2,7 +2,7 @@ import AppKit
 import CoreText
 import Foundation
 import Testing
-@testable import ScreenPilot
+@testable import Seer
 
 /// Renders text lines into an image the way a web page would show them.
 private func renderPage(_ lines: [String], width: Int = 1400, height: Int = 900, fontSize: CGFloat = 26) -> CGImage {

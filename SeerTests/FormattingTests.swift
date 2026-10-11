@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 import Testing
-@testable import ScreenPilot
+@testable import Seer
 
 @Suite("Answer formatting")
 struct FormattingTests {

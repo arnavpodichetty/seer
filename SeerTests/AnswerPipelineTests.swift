@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import ScreenPilot
+@testable import Seer
 
 @Suite("Answer parsing")
 struct AnswerParserTests {
@@ -117,7 +117,7 @@ struct AnswerCacheTests {
     }
 
     @Test func persistsWhenEnabledAndClears() async throws {
-        let dir = FileManager.default.temporaryDirectory.appending(path: "ScreenPilotTests-\(UUID().uuidString)")
+        let dir = FileManager.default.temporaryDirectory.appending(path: "SeerTests-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: dir) }
         let cache = AnswerCache(persist: true, directory: dir)
         await cache.store(record("Compute 17 squared and give the result"))

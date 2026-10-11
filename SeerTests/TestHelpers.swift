@@ -1,6 +1,6 @@
 import CoreGraphics
 import Foundation
-@testable import ScreenPilot
+@testable import Seer
 
 /// Builds an OCR result from lines laid out top to bottom, like a page.
 func page(_ lines: [String], x: CGFloat = 0.1, startY: CGFloat = 0.2, lineHeight: CGFloat = 0.02, gap: CGFloat = 0.008,
