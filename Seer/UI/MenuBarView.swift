@@ -28,10 +28,7 @@ struct MenuBarView: View {
         Text("AI: \(environment.settings.aiProvider.label)")
         Text(state.ollamaStatus.label)
         if !state.screenPermissionGranted {
-            Button("Grant Screen Recording Permission…") {
-                PermissionsManager.requestScreenRecordingAccess()
-                PermissionsManager.openScreenRecordingSettings()
-            }
+            Button("Grant Screen Recording Permission…") { PermissionsManager.openScreenRecordingSettings() }
         }
 
         Divider()
