@@ -30,7 +30,7 @@ Shortcuts can be changed in Settings → General. Turn on **Watch screen for que
 
 ## Options
 
-- **Context:** add anything you want Seer to know about you in Settings → Context. It's used for the chat and for personal questions like "Tell me about yourself".
+- **Context:** add anything you want Seer to know about you in Settings → Context. It's used for the chat and any questions that might require more context.
 - **Custom model:** if you pay for another model, add it under Settings → API Keys → Custom model. Any OpenAI-compatible API works, such as OpenAI, OpenRouter or DeepSeek. It's tried first, with Groq and Gemini as backups.
 - **Offline fallback:** install [Ollama](https://ollama.com) and run `ollama pull qwen3:4b-instruct` and `ollama pull qwen3-vl:4b-instruct`.
 
