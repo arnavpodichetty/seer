@@ -38,6 +38,7 @@ nonisolated struct QuestionDetector {
         var ranking: Double
         var kind: QuestionKind
         var needsVision: Bool
+        var wholeScreen: Bool
         var options: [String]
     }
 
@@ -91,7 +92,8 @@ nonisolated struct QuestionDetector {
         }
         let context = Self.context(around: best, rows: regionRows[best.region], limit: configuration.maxContextCharacters)
         let unionBox = best.rows.dropFirst().reduce(best.rows[0].box) { $0.union($1.box) }
-        let region = CGRect(x: unionBox.minX / size.width, y: unionBox.minY / size.height,
+        // A puzzle's tiles can be anywhere on screen, so the model sees all of it (a zero region means no crop).
+        let region = best.wholeScreen ? .zero : CGRect(x: unionBox.minX / size.width, y: unionBox.minY / size.height,
                             width: unionBox.width / size.width, height: unionBox.height / size.height)
 
         let question = DetectedQuestion(
@@ -114,20 +116,20 @@ nonisolated struct QuestionDetector {
                                 medianHeight: CGFloat, imageSize: CGSize, chartLike: Bool) -> Candidate? {
         var anchorRows = blocks[i].rows
         var anchorOffset = 0
-        // An interview prompt is just its own sentence: drop whatever shares the block
+        // A personal prompt is just its own sentence: drop whatever shares the block
         // (an AI summary under a search box, page text, the logo beside it).
-        let isInterviewPrompt = Self.matches(anchorRows.map(\.text).joined(separator: " "), Patterns.interview)
-        if isInterviewPrompt {
+        let isPersonalPrompt = Self.matches(anchorRows.map(\.text).joined(separator: " "), Patterns.personalPrompt)
+        if isPersonalPrompt {
             let texts = anchorRows.map(\.text)
             if let segment = Self.wrappedSegments(texts).first(where: { seg in
-                Self.matches(seg.map { texts[$0] }.joined(separator: " "), Patterns.interview)
+                Self.matches(seg.map { texts[$0] }.joined(separator: " "), Patterns.personalPrompt)
             }), let first = segment.first {
                 // Once the prompt reads as complete, a capitalized line starts something else
                 // (tabs, "AI Overview"); real wrapped continuations start lowercase.
                 var kept: [Row] = []
                 for index in segment {
                     let row = anchorRows[index]
-                    let complete = Self.matches(kept.map(\.text).joined(separator: " "), Patterns.interview)
+                    let complete = Self.matches(kept.map(\.text).joined(separator: " "), Patterns.personalPrompt)
                     if complete, row.text.first?.isUppercase ?? false { break }
                     kept.append(row)
                 }
@@ -149,7 +151,7 @@ nonisolated struct QuestionDetector {
         }
 
         // Pull in supporting blocks below: answer options, code, data. Plain short lines only
-        // follow an explicit question ("…?" / "which of the following"); interview prompts
+        // follow an explicit question ("…?" / "which of the following"); personal prompts
         // stand alone so page furniture (tabs, AI summaries) never joins them.
         let anchorText = anchorRows.map(\.text).joined(separator: " ")
         let invitesChoices = anchorText.contains("?") || Self.matches(anchorText, Patterns.whichOfTheFollowing)
@@ -161,7 +163,7 @@ nonisolated struct QuestionDetector {
             let bottom = rows.last.map(\.box.maxY) ?? 0
             if next.box.minY - bottom > medianHeight * 3.5 { break }
             if next.rows.contains(where: { Self.isNamedHeader($0.text) }) { break }
-            if isInterviewPrompt { break }
+            if isPersonalPrompt { break }
             let structured = next.rows.contains { Self.isOption($0.text) || Self.isCodeLike($0.text) || Self.matches($0.text.lowercased(), Patterns.likert) }
             let shortChoices = invitesChoices && next.rows.count <= 6 && next.rows.allSatisfy { $0.text.count <= 80 }
             guard structured || shortChoices else { break }
@@ -196,21 +198,22 @@ nonisolated struct QuestionDetector {
                          score: features.score, ranking: features.score + prominence,
                          kind: features.kind,
                          // OCR that's unsure of itself often garbles symbols (÷ read as -), so let the model see the crop.
-                         needsVision: features.needsVision || (features.kind != .interview && avgConfidence < 0.5),
-                         options: features.options)
+                         needsVision: features.needsVision || (features.kind != .personal && avgConfidence < 0.5),
+                         wholeScreen: features.wholeScreen, options: features.options)
     }
 
     struct Features: Equatable {
         var score: Double
         var kind: QuestionKind
         var needsVision: Bool
+        var wholeScreen = false
         var options: [String]
     }
 
     /// Scores a candidate. Only `anchorRows` (the block the candidate starts from) can supply
     /// the question itself; appended rows (options, code, data) only add support. A question
     /// must be a real natural-language sentence: one ending in "?", one starting with a task
-    /// verb, or an interview prompt. Code and short UI labels never count.
+    /// verb, or a personal prompt. Code and short UI labels never count.
     static func score(rows: [Row], anchorRows: [Row]? = nil, followedByProse: Bool = false, chartLike: Bool = false) -> Features {
         let text = rows.map(\.text).joined(separator: "\n")
         let lower = text.lowercased()
@@ -231,7 +234,8 @@ nonisolated struct QuestionDetector {
         var imperative = false
         var academic = false
         var task = false
-        var interview = false
+        var personal = false
+        var puzzle = false
         for sentence in sentences where isProse(sentence) {
             let tokens = wordTokens(sentence)
             if sentence.hasSuffix("?") && tokens >= 4 {
@@ -242,13 +246,19 @@ nonisolated struct QuestionDetector {
         for start in starts where isProse(start) {
             let tokens = wordTokens(start)
             let terminated = start.last.map { ".:?".contains($0) } ?? false
-            if matches(start, Patterns.interview) { interview = true }
+            if matches(start, Patterns.personalPrompt) { personal = true }
             if (tokens >= 4 || (tokens == 3 && terminated)) && matches(start, Patterns.imperativeStart) {
                 imperative = true
                 if matches(start, Patterns.academicStart) { academic = true }
                 if matches(start, Patterns.task) { task = true }
             }
             if matches(start, Patterns.choiceInstruction) { imperative = true; task = true }
+            // "Click the hexagons that add up to 24": the numbers to pick are only in the picture.
+            if matches(start, Patterns.puzzleInstruction) { imperative = true; task = true; puzzle = true }
+            // "Select the shapes that are the same": the shapes themselves are only in the picture.
+            if matches(start, Patterns.puzzleVerbStart), mentionsVisualPuzzle(start) { imperative = true; task = true; puzzle = true }
+            // "Choose the image that better describes you": a personality item whose choices are pictures.
+            if matches(start, Patterns.selfImageChoice) { imperative = true; task = true; puzzle = true }
         }
 
         let cells = rows.flatMap { $0.text.components(separatedBy: " | ") }
@@ -285,27 +295,33 @@ nonisolated struct QuestionDetector {
         let visualHits = count(lower, Patterns.visual)
         let geometry = count(text, Patterns.geometry) >= 1
 
-        let anchored = questionSentences > 0 || imperative || interview || (likert && options.count >= 2)
+        // "Are these two shapes the same?", "What emotion is this person showing?": only the picture can answer.
+        if mentionsVisualPuzzle(paragraph) { puzzle = true }
+
+        let anchored = questionSentences > 0 || imperative || personal || (likert && options.count >= 2)
         guard anchored || isBareEquation else { return none }
 
         var score = 0.0
-        if interview { score += 3.5 }
+        if personal { score += 3.5 }
         if questionSentences > 0 { score += 2.0 + (interrogative ? 0.5 : 0) }
         if imperative { score += 2.0 + (academic ? 0.5 : 0) + (task ? 1.0 : 0) }
         if !anchored && isBareEquation { score += 2.5 }
         if rows.contains(where: { isNamedHeader($0.text) }) { score += 1.0 }
         if options.count >= 2 { score += 2.0 }
         if likert && options.count >= 2 { score += 1.5 }
+        // Picture games (number tiles, shapes, paths, faces, picture choices) are unmistakably
+        // posed to the reader: skip the AI check so the answer arrives during the timer.
+        if puzzle && anchored { score += 1.0 }
         if whichOfFollowing { score += 1.0 }
         if isSQL || isProgramming || isMath { score += 0.5 }
         if isLogic { score += 0.5 }
         if visualHits > 0 { score += 0.5 }
 
         // Already-answered questions (FAQ entries, Q&A articles).
-        if !interview && !imperative && options.count < 2 && (followedByProse || answeredInline(rows)) { score -= 1.5 }
+        if !personal && !imperative && options.count < 2 && (followedByProse || answeredInline(rows)) { score -= 1.5 }
         // Rhetorical questions buried in long prose.
         let proseHeavy = proseRows.count >= 5 && Double(paragraph.count) / Double(max(proseRows.count, 1)) > 45
-        if proseHeavy && !interview && !imperative && options.count < 2
+        if proseHeavy && !personal && !imperative && options.count < 2
             && Double(questionSentences) / Double(max(sentences.count, 1)) < 0.25 { score -= 1.5 }
         if wordCount > 350 && !imperative && options.count < 2 { score -= 2.0 }
         // Screens dominated by code (editors, terminals).
@@ -313,21 +329,21 @@ nonisolated struct QuestionDetector {
 
         let kind: QuestionKind
         if options.count >= 2 || whichOfFollowing { kind = .multipleChoice }
-        else if interview { kind = .interview }
+        else if personal { kind = .personal }
         else if isSQL { kind = .sql }
         else if isProgramming { kind = .programming }
         else if isMath { kind = .math }
         else if isLogic { kind = .logic }
-        else if visualHits > 0 || chartLike { kind = .visual }
+        else if visualHits > 0 || chartLike || puzzle { kind = .visual }
         else { kind = .general }
 
         // OCR flattens exponents ("4²" → "42"), drops stacked fractions and misreads √ and ∫, all at full
         // confidence; in testing, math answered from OCR text alone was right 4–5 times in 11, and 11 in 11
-        // with the screenshot. Code, prose and interview questions read fine as text, so they skip it.
+        // with the screenshot. Code, prose and personal questions read fine as text, so they skip it.
         let mathy = kind == .math || kind == .visual
             || ([.multipleChoice, .general, .logic].contains(kind) && mathSymbols >= 1)
-        let needsVision = kind != .interview && (visualHits > 0 || chartLike || geometry || mathy)
-        return Features(score: score, kind: kind, needsVision: needsVision, options: options)
+        let needsVision = kind != .personal && (visualHits > 0 || chartLike || geometry || mathy || puzzle)
+        return Features(score: score, kind: kind, needsVision: needsVision, wholeScreen: puzzle, options: options)
     }
 
     /// A question immediately followed, within the same candidate, by a long prose answer.
@@ -371,7 +387,7 @@ nonisolated struct QuestionDetector {
     static func dropLeadingCells(_ text: String) -> String {
         let cells = text.components(separatedBy: " | ")
         guard cells.count > 1 else { return text }
-        let index = cells.firstIndex { matches($0, Patterns.interview) } ?? cells.count - 1
+        let index = cells.firstIndex { matches($0, Patterns.personalPrompt) } ?? cells.count - 1
         return cells[index...].joined(separator: " | ")
     }
 
@@ -473,13 +489,15 @@ nonisolated struct QuestionDetector {
     }
 
     /// Many short numeric labels (axis ticks, legends) suggest a chart or plot.
-    static func looksLikeChart(_ lines: [OCRLine]) -> Bool {
-        let numericLabels = lines.filter { line in
+    static func looksLikeChart(_ lines: [OCRLine]) -> Bool { numericLabelCount(lines) >= 8 }
+
+    /// Short standalone numbers: axis ticks, legends, or number tiles in a puzzle.
+    static func numericLabelCount(_ lines: [OCRLine]) -> Int {
+        lines.filter { line in
             let t = line.text.trimmingCharacters(in: .whitespaces)
             return t.count <= 6 && t.contains(where: \.isNumber)
                 && t.allSatisfy { $0.isNumber || ".,%$-−kKmM°".contains($0) }
-        }
-        return numericLabels.count >= 8
+        }.count
     }
 
     private static func context(around candidate: Candidate, rows: [Row], limit: Int) -> String {
@@ -502,6 +520,15 @@ nonisolated struct QuestionDetector {
     }
 
     static func isOption(_ text: String) -> Bool { matches(text, Patterns.option) }
+
+    /// Picture-only games: shape matching (shapes compared for sameness or rotation, or bare
+    /// "Match" / "No match" buttons), sliding-box path puzzles, and emotion recognition (an emotion question,
+    /// or a row of emotion buttons under a face).
+    static func mentionsVisualPuzzle(_ text: String) -> Bool {
+        (matches(text, Patterns.shapeNoun) && matches(text, Patterns.sameness)) || matches(text, Patterns.matchButton)
+            || matches(text, Patterns.pathPuzzle) || matches(text, Patterns.emotionQuestion)
+            || count(text, Patterns.emotionButton) >= 3
+    }
     static func isHeader(_ text: String) -> Bool { isNamedHeader(text) || matches(text, Patterns.numberedItem) }
     static func isNamedHeader(_ text: String) -> Bool { matches(text, Patterns.namedHeader) }
 
@@ -523,12 +550,23 @@ nonisolated struct QuestionDetector {
         static let imperativeStart = regex(#"^\s*(?:(?:\d{1,3}|[a-h])[.)]\s+|q\d*[.:)]\s*|(?:problem|question|task|exercise)\s*\d*\s*[.:]\s*)?(complete the|solve|find|calculate|compute|evaluate|determine|simplify|factor|factori[sz]e|expand|differentiate|integrate|prove|show that|implement|write|derive|estimate|convert|rewrite|explain|describe|compare|contrast|define|justify|discuss|summari[sz]e|analy[sz]e|translate|given|you are given|you're given|design|tell|introduce|walk|give)\b"#)
         static let academicStart = regex(#"^\s*(?:(?:\d{1,3}|[a-h])[.)]\s+)?(explain|describe|compare|contrast|define|justify|discuss|summari[sz]e|analy[sz]e|prove|derive|evaluate)\b"#)
         static let task = regex(#"\bwrite (a|an|the)?\s*(sql|query|function|program|method|class|script|algorithm|code|proof|essay|paragraph|equation|regex|regular expression|solution)|\bcomplete the \w+ function|\b(solve|find|calculate|compute|evaluate|determine|simplify)\b.*(\d|=|\bx\b|value|angle|area|sum|probability|derivative|integral|equation|length|perimeter|volume|limit|roots?|average|mean)|\bgiven (an?|the|two|some) (array|string|list|integer|tree|graph|number|matrix|binary|linked|table|set|sequence|function)|\bimplement (a|an|the)\b"#)
-        static let choiceInstruction = regex(#"^\s*(?:(select|choose|pick|identify|mark|circle|rank) (the |all |one |an? )?(correct|best|right|true|false|most|least|following|answer|option|statement|responses?)|true or false\b)"#)
+        static let choiceInstruction = regex(#"^\s*(?:(select|choose|pick|identify|mark|circle|rank) (the |all |one |an? |your )?(correct|best|right|true|false|most|least|following|answer|option|statement|responses?)|true or false\b)"#)
+        /// Number-tile games: "Click the hexagons that add up to…", "Select two numbers whose product is…".
+        static let puzzleInstruction = regex(#"^\s*(?:(?:\d{1,3}|[a-h])[.)]\s+)?(click|tap|select|choose|pick|find|identify|highlight|drag)\b.{0,60}\b(numbers?|hexagons?|tiles?|cells?|cards?|shapes?|circles?|squares?|boxes|values?|digits?)\b.{0,80}\b(sum|add|adds|total|totals|equal|equals|make|makes|product|multipl\w*|divid\w*|subtract\w*|differ\w*|target|result|correct|missing|largest|smallest|greater|less)\b"#)
+        static let puzzleVerbStart = regex(#"^\s*(?:(?:\d{1,3}|[a-h])[.)]\s+)?(click|tap|select|choose|pick|find|identify|highlight|drag|match|decide|determine|indicate|slide|move|swap|arrange|connect|rotate)\b"#)
+        static let shapeNoun = regex(#"\b(shapes?|symbols?|figures?|triangles?|squares?|circles?|pieces?)\b"#)
+        static let sameness = regex(#"\b(same|match(es|ed|ing)?|identical|rotat(ed|ion|ions)|orientations?|mirror(ed)?|flipped|turned)\b"#)
+        /// Sliding-box games: "Slide the boxes to create a connected path".
+        static let pathPuzzle = regex(#"\b(slide|move|drag|rotate|swap|arrange)\b.{0,60}\b(box(es)?|tiles?|blocks?|pieces?)\b.{0,60}\b(path(way)?s?|connect\w*|route)\b|\b(connect|complete|create|build)\b.{0,30}\b(path(way)?|route)\b.{0,40}\b(box(es)?|tiles?|blocks?|start|end|goal|exit)\b"#)
+        static let emotionQuestion = regex(#"\b(what|which|identify|select|choose|pick)\b.{0,40}\b(emotions?|feelings?|facial expressions?)\b|\bhow (is|does) (this|the) (person|man|woman|face)\b.{0,20}\bfeel"#)
+        static let emotionButton = regex(#"^\s*(happy|happiness|joy|sad|sadness|angry|anger|fear|fearful|afraid|scared|surprise|surprised|disgust|disgusted|contempt|neutral)\s*$"#)
+        static let matchButton = regex(#"^\s*(no\s+match|not\s+(a\s+)?match|match|same|different|not\s+the\s+same)\s*[?!.]?\s*$"#)
+        static let selfImageChoice = regex(#"^\s*(?:(?:\d{1,3}|[a-h])[.)]\s+)?(?:(choose|select|pick|click|tap)\b.{0,30}|which\s+(?:of\s+(?:the|these)\s+)?)\b(images?|pictures?|photos?|illustrations?|scenes?|drawings?)\b.{0,50}\b(describes?|represents?|fits?|suits?|like|reflects?)\b.{0,25}\b(you|yourself|me)\b"#)
         static let likert = regex(#"strongly disagree[\s\S]*strongly agree|strongly agree[\s\S]*strongly disagree|\bdisagree\b[\s\S]*\bneutral\b[\s\S]*\bagree\b"#)
         static let likertAnchor = regex(#"^\s*(strongly (dis)?agree|(dis)?agree|neutral|neither agree nor disagree|somewhat (dis)?agree)\s*$"#)
         static let mathVerbStart = regex(#"^\s*(?:(?:\d{1,3}|[a-h])[.)]\s+)?(evaluate|simplify|solve|compute|calculate|find|factor|expand|differentiate|integrate)\b"#)
         static let equalsQuestion = regex(#"=\s*\?"#)
-        static let interview = regex(#"\b(tell (me|us) (a (little|bit) )?(about|more about) (yourself|a time|an? (time|situation|experience|project|challenge|mistake|failure|conflict|accomplishment|achievement))|introduce yourself|walk (me|us) through (your|a|how)|describe (a|an) (time|situation|experience|project|challenge|moment|instance|occasion)|give (me |us )?an example of|describe how you (would|have|did|handle|approach|manage)|what did you learn from|share an? (experience|example|time|story)|why do you want (to|this)|why should we hire you|why (are you|would you be) (interested|a good fit)|what are your (greatest )?(strengths|weaknesses)|what is your (greatest )?(strength|weakness)|where do you see yourself|what motivates you|how do you (handle|deal with|prioriti[sz]e|manage)|how would you (handle|deal with|approach)|what interests you about|why are you leaving|what (are|is) your (career goals|salary expectations|biggest (achievement|accomplishment))|what makes you (a good fit|unique|qualified)|have you ever (had to|faced|dealt with|disagreed)|tell (me|us) about your (background|experience|biggest))\b"#)
+        static let personalPrompt = regex(#"\b(tell (me|us) (a (little|bit) )?(about|more about) (yourself|a time|an? (time|situation|experience|project|challenge|mistake|failure|conflict|accomplishment|achievement))|introduce yourself|walk (me|us) through (your|a|how)|describe (a|an) (time|situation|experience|project|challenge|moment|instance|occasion)|give (me |us )?an example of|describe how you (would|have|did|handle|approach|manage)|what did you learn from|share an? (experience|example|time|story)|why do you want (to|this)|why should we hire you|why (are you|would you be) (interested|a good fit)|what are your (greatest )?(strengths|weaknesses)|what is your (greatest )?(strength|weakness)|where do you see yourself|what motivates you|how do you (handle|deal with|prioriti[sz]e|manage)|how would you (handle|deal with|approach)|what interests you about|why are you leaving|what (are|is) your (career goals|salary expectations|biggest (achievement|accomplishment))|what makes you (a good fit|unique|qualified)|have you ever (had to|faced|dealt with|disagreed)|tell (me|us) about your (background|experience|biggest))\b"#)
         static let whichOfTheFollowing = regex(#"which (one )?of the (following|options|choices|statements)"#)
         static let namedHeader = regex(#"^\s*(question|q|problem|exercise|task|quiz|practice|example)\s*#?\s*\d+\b"#)
         static let numberedItem = regex(#"^\s*\d{1,3}[.)]\s+\S"#)

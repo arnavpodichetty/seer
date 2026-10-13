@@ -7,7 +7,7 @@ nonisolated enum QuestionKind: String, Codable, Sendable, CaseIterable {
     case sql
     case programming
     case logic
-    case interview
+    case personal
     case visual
     case general
 
@@ -18,7 +18,7 @@ nonisolated enum QuestionKind: String, Codable, Sendable, CaseIterable {
         case .sql: "SQL"
         case .programming: "Programming"
         case .logic: "Logic"
-        case .interview: "About you"
+        case .personal: "About you"
         case .visual: "Visual"
         case .general: "Question"
         }
@@ -31,7 +31,7 @@ nonisolated enum QuestionKind: String, Codable, Sendable, CaseIterable {
         case .sql: "cylinder.split.1x2"
         case .programming: "chevron.left.forwardslash.chevron.right"
         case .logic: "brain"
-        case .interview: "person.wave.2"
+        case .personal: "person.wave.2"
         case .visual: "chart.xyaxis.line"
         case .general: "questionmark.circle"
         }

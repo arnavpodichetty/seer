@@ -53,7 +53,7 @@ struct ContextSettingsView: View {
                             .confirmationDialog("Delete your context?", isPresented: $confirmClear) {
                                 Button("Clear", role: .destructive) {
                                     settings.profileSummary = ""
-                                    Task { await environment.cache.removeAll(kind: .interview) }
+                                    Task { await environment.cache.removeAll(kind: .personal) }
                                 }
                             }
                     }

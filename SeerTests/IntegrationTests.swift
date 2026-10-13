@@ -47,12 +47,12 @@ struct OCRIntegrationTests {
         #expect(question.options.count >= 3)
     }
 
-    @Test func ocrDetectsLargeWrappedInterviewPrompt() async throws {
+    @Test func ocrDetectsLargeWrappedPersonalPrompt() async throws {
         let image = renderPage(["Google", "", "in 2 minutes, tell me about a", "time you had to learn", "something quickly.", "", "AI Overview"],
                                width: 1600, height: 1000, fontSize: 64)
         let ocr = try await OCRService().recognize(image, signature: nil)
         let question = try #require(QuestionDetector().detect(ocr).question)
-        #expect(question.kind == .interview)
+        #expect(question.kind == .personal)
         #expect(!question.isAmbiguous)
     }
 

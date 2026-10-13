@@ -58,6 +58,16 @@ struct FormattingTests {
         #expect(prompt.contains("some screen text"))
     }
 
+    @Test func automaticScreenPromptMayDecline() {
+        var q = DetectedQuestion.visual(ocrText: "Score 120\n7\n12\n5\n9", signature: nil)
+        #expect(!PromptBuilder.userPrompt(for: q, attachingImage: true).contains("NO_QUESTION"))   // manual: always answer
+        q.needsConfirmation = true
+        let prompt = PromptBuilder.userPrompt(for: q, attachingImage: true)
+        #expect(prompt.contains("NO_QUESTION"))
+        #expect(!prompt.contains("Solve now"))
+        #expect(prompt.contains("Score 120"))
+    }
+
     @Test func pictureOnlyQuestionPromptAndIdentity() throws {
         let sig = try #require(ScreenChangeDetector.signature(for: shadedGrid()))
         let q = DetectedQuestion.visual(ocrText: "", signature: sig)

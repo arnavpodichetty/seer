@@ -11,14 +11,14 @@ struct ProfileTests {
         #expect(settings.activeProfile == nil)
     }
 
-    @Test func profileIsOnlyAddedToInterviewPrompts() throws {
+    @Test func profileIsOnlyAddedToPersonalPrompts() throws {
         let detector = QuestionDetector()
-        let interview = try #require(detector.detect(page(["Tell me about yourself."])).question)
+        let personal = try #require(detector.detect(page(["Tell me about yourself."])).question)
         let math = try #require(detector.detect(page(["Exercise 1", "Solve for x: 2x + 3 = 11"])).question)
         let profile = "- Built a budgeting app used by 2,000 students"
-        #expect(PromptBuilder.userPrompt(for: interview, attachingImage: false, profile: profile).contains("budgeting app"))
+        #expect(PromptBuilder.userPrompt(for: personal, attachingImage: false, profile: profile).contains("budgeting app"))
         #expect(!PromptBuilder.userPrompt(for: math, attachingImage: false, profile: profile).contains("budgeting app"))
-        #expect(PromptBuilder.systemPrompt(detail: .standard, kind: .interview).contains("STAR"))
+        #expect(PromptBuilder.systemPrompt(detail: .standard, kind: .personal).contains("STAR"))
     }
 
     @Test func activeProfileRespectsToggle() {
@@ -32,15 +32,15 @@ struct ProfileTests {
         #expect(settings.activeProfile == nil)
     }
 
-    @Test func clearingInterviewAnswersKeepsOthers() async {
+    @Test func clearingPersonalAnswersKeepsOthers() async {
         let cache = AnswerCache(persist: false, directory: nil)
         func record(_ text: String, _ kind: QuestionKind) -> AnswerRecord {
             AnswerRecord(fingerprint: QuestionFingerprintService.make(from: text), questionExcerpt: text, kind: kind, mode: .text,
                          model: "m", parsed: .empty, raw: "", createdAt: Date(), duration: 0)
         }
-        await cache.store(record("Tell me about yourself and your background", .interview))
+        await cache.store(record("Tell me about yourself and your background", .personal))
         await cache.store(record("Solve for x when two x plus three equals eleven", .math))
-        await cache.removeAll(kind: .interview)
+        await cache.removeAll(kind: .personal)
         #expect(await cache.all().map(\.kind) == [.math])
     }
 }

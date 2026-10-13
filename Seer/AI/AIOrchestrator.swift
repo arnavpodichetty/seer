@@ -35,6 +35,8 @@ final class AIOrchestrator {
     private var lastOCRAt: Date?
     private var sameTextStreak = 0
     private var lastOCRWordCount = 0
+    private var lastNumericLabelCount = 0
+    private var lastOCRMentionsPuzzle = false
     /// Picture-only screens: a frame must repeat once before it's checked, and each is checked once.
     private var pendingVisual: FrameSignature?
     private var checkedVisual: [FrameSignature] = []
@@ -202,6 +204,8 @@ final class AIOrchestrator {
                     sameTextStreak = text == lastOCRText ? sameTextStreak + 1 : 0
                     lastOCRText = text
                     lastOCRWordCount = QuestionDetector.wordTokens(text)
+                    lastNumericLabelCount = QuestionDetector.numericLabelCount(result.lines)
+                    lastOCRMentionsPuzzle = QuestionDetector.mentionsVisualPuzzle(text)
                     lastOCRAt = Date()
                     let detector = self.detector
                     detection = await Task.detached(priority: .utility) { detector.detect(result) }.value
@@ -230,12 +234,13 @@ final class AIOrchestrator {
         guard let question = detection.question else {
             _ = gate.observe(nil, at: Date())
             if case let .none(reason) = detection { state.detectionStatus = reason }
-            if lastOCRWordCount < 15 { await checkForVisualQuestion(frame) }
+            if mayHoldVisualQuestion { await checkForVisualQuestion(frame) }
             return interval
         }
         if rejected.contains(where: { QuestionFingerprintService.isSameQuestion($0, question.fingerprint) }) {
             gate.reset()
             state.detectionStatus = "No question detected"
+            if mayHoldVisualQuestion { await checkForVisualQuestion(frame) }
             return interval
         }
         let stable = gate.observe(question.fingerprint, at: Date())
@@ -250,6 +255,12 @@ final class AIOrchestrator {
         }
         await adopt(question, image: frame.image, appName: frame.appName)
         return interval
+    }
+
+    /// Screens with (almost) no text, a handful of standalone numbers (number-tile games, charts),
+    /// or game cues (shapes, paths, emotions) may hold a problem the text detector can't see, the same way "Solve now" would find it.
+    private var mayHoldVisualQuestion: Bool {
+        lastOCRWordCount < 15 || (lastOCRWordCount <= 150 && (lastNumericLabelCount >= 4 || lastOCRMentionsPuzzle))
     }
 
     /// Screens with (almost) no text may still hold a problem as a picture. Once a frame is
@@ -272,6 +283,8 @@ final class AIOrchestrator {
         var question = DetectedQuestion.visual(ocrText: lastOCRText, signature: signature)
         question.needsConfirmation = true
         guard !rejected.contains(where: { QuestionFingerprintService.isSameQuestion($0, question.fingerprint) }) else { return }
+        // Clicking a tile changes the picture but not the puzzle: keep the answer already showing.
+        if let current = currentQuestion, QuestionFingerprintService.isSameQuestion(current.fingerprint, question.fingerprint) { return }
         await adopt(question, image: frame.image, appName: frame.appName)
     }
 
@@ -676,11 +689,11 @@ final class AIOrchestrator {
         return custom + (provider == .groq ? groq + gemini : gemini + groq) + [.ollama]
     }
 
-    /// Interview and questionnaire answers built from the user's context go to Gemini first: in testing it kept to the
+    /// Personal and questionnaire answers built from the user's context go to Gemini first: in testing it kept to the
     /// facts given, while gpt-oss on Groq invented conflicts, targets and incidents. A long context
     /// also overruns Groq's free 8k tokens-per-minute limit after one answer.
     private func prefersGemini(_ question: DetectedQuestion) -> Bool {
-        (question.kind == .interview || PromptBuilder.isSelfAssessment(question))
+        (question.kind == .personal || PromptBuilder.isSelfDescription(question))
             && settings.activeProfile != nil && settings.geminiAPIKey != nil
     }
 
@@ -806,7 +819,7 @@ final class AIOrchestrator {
 
         let system = PromptBuilder.systemPrompt(detail: settings.detailLevel, kind: question.kind)
         // Leave room for a requested speaking length ("in 2 minutes…") plus the tips.
-        let spokenWords = question.kind == .interview ? PromptBuilder.spokenWordTarget(question.text) ?? 0 : 0
+        let spokenWords = question.kind == .personal ? PromptBuilder.spokenWordTarget(question.text) ?? 0 : 0
         let budget = max(settings.maxResponseTokens, spokenWords * 2 + 300)
         let key = settings.geminiAPIKey
         let search = canSearch && PromptBuilder.wantsWebSearch(question)
@@ -987,7 +1000,7 @@ final class AIOrchestrator {
                 model: model, system: system,
                 text: PromptBuilder.userPrompt(for: question, attachingImage: !images.isEmpty, profile: settings.activeProfile),
                 imagesBase64JPEG: images, maxTokens: maxTokens,
-                temperature: question.kind == .interview ? 0.2 : 0.3, reasoningEffort: effort)
+                temperature: question.kind == .personal ? 0.2 : 0.3, reasoningEffort: effort)
             do {
                 var raw = ""
                 var finish: String?

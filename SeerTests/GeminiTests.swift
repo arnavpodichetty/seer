@@ -121,7 +121,7 @@ struct GeminiTests {
 /// TEST_RUNNER_SEER_LIVE=1 xcodebuild test …
 @Suite("Gemini live", .enabled(if: ProcessInfo.processInfo.environment["SEER_LIVE"] != nil))
 struct GeminiLiveTests {
-    @Test func answersInterviewPromptWithProfile() async throws {
+    @Test func answersPersonalPromptWithProfile() async throws {
         let key = try #require(KeychainStore.read())
         let q = try #require(QuestionDetector().detect(page(["in 2 minutes, tell me about a", "time you had to learn", "something quickly."])).question)
         let profile = sampleProfile
@@ -151,11 +151,11 @@ struct GeminiLiveTests {
         Issue.record("All Gemini models failed: \(lastError?.localizedDescription ?? "?")")
     }
 
-    @Test(arguments: ["interview", "math", "code"])
+    @Test(arguments: ["personal", "math", "code"])
     func solvesRealQuestions(_ kind: String) async throws {
         let key = try #require(KeychainStore.read())
         let lines: [String] = switch kind {
-        case "interview": [
+        case "personal": [
             "Google | tell me about a time you had to make a decision with incomplete data",
             "AI Mode All Short videos Forums Videos Shopping Images More • Tools",
             "AI Overview",
@@ -235,7 +235,7 @@ struct GeminiLiveTests {
         Issue.record("all models failed")
     }
 
-    @Test(arguments: ["math", "interview", "grid"])
+    @Test(arguments: ["math", "personal", "grid"])
     func groqAnswers(_ kind: String) async throws {
         let key = try #require(KeychainStore.read(service: KeychainStore.groqService))
         let client = GroqClient(apiKey: key)
@@ -245,25 +245,25 @@ struct GeminiLiveTests {
         switch kind {
         case "math":
             q = try #require(QuestionDetector().detect(page(["Problem 4", "A rectangle has a perimeter of 46 cm and an area of 120 cm². Find its length and width."])).question)
-        case "interview":
+        case "personal":
             q = try #require(QuestionDetector().detect(page(["tell me about a time you had to make a decision with incomplete data"])).question)
         default:
             q = DetectedQuestion.visual(ocrText: "", signature: ScreenChangeDetector.signature(for: shadedGrid()))
             images = [try #require(ImageUtilities.jpegData(ImageUtilities.downsample(shadedGrid(), maxDimension: 1024))?.base64EncodedString())]
             model = "qwen/qwen3.8-27b"
         }
-        let profile = kind == "interview" ? sampleProfile : nil
+        let profile = kind == "personal" ? sampleProfile : nil
         let start = Date()
         let raw = try await client.generateText(.init(model: model, system: PromptBuilder.systemPrompt(detail: .brief, kind: q.kind),
                                                       text: PromptBuilder.userPrompt(for: q, attachingImage: !images.isEmpty, profile: profile),
                                                       imagesBase64JPEG: images, maxTokens: AIOrchestrator.groqTokenBudget(1024),
-                                                      temperature: kind == "interview" ? 0.2 : 0.3, reasoningEffort: "low"))
+                                                      temperature: kind == "personal" ? 0.2 : 0.3, reasoningEffort: "low"))
         print("LIVE[groq-\(kind)] \(model) \(String(format: "%.2f", Date().timeIntervalSince(start)))s\n\(raw)\nLIVE-END")
         let answer = AnswerParser.parse(raw).answer
         #expect(!answer.isEmpty)
         if kind == "math" { #expect(answer.contains("15") && answer.contains("8")) }
         if kind == "grid" { #expect(raw.contains("5/7") || raw.contains("25/35") || raw.contains("frac{5}{7}") || raw.contains("25 out of 35")) }
-        if kind == "interview" { #expect(!raw.contains("%"), "no invented percentages") }
+        if kind == "personal" { #expect(!raw.contains("%"), "no invented percentages") }
     }
 }
 

@@ -1,6 +1,6 @@
 # Seer
 
-A macOS menu bar app that spots questions on your screen and answers them in a small floating overlay.
+A macOS menu bar app that spots questions on your screen and answers them in a small floating overlay. It handles multiple choice, math, code, SQL, logic, picture-only problems and interview-style prompts.
 
 Created by Arnav Podichetty.
 

@@ -77,6 +77,81 @@ struct QuestionDetectorTests {
         #expect(q.mode == .vision)
     }
 
+    @Test func numberTilePuzzleUsesWholeScreen() throws {
+        var ocr = page(["Question 3 of 12", "Click the hexagons that add up to 24."])
+        for (i, n) in ["7", "12", "5", "9", "3", "15"].enumerated() {
+            ocr.lines.append(OCRLine(text: n, box: CGRect(x: 0.3 + CGFloat(i % 3) * 0.12, y: 0.5 + CGFloat(i / 3) * 0.12, width: 0.02, height: 0.02), confidence: 0.9))
+        }
+        let q = try #require(detector.detect(ocr).question)
+        #expect(q.text.contains("add up to 24"))
+        #expect(q.mode == .vision)
+        #expect(q.region == .zero)
+        #expect(QuestionDetector.numericLabelCount(ocr.lines) == 6)
+    }
+
+    @Test func shapeMatchingUsesWholeScreen() throws {
+        let ocr = page(["Select the two shapes that are the same, even if rotated."])
+        let q = try #require(detector.detect(ocr).question)
+        #expect(q.mode == .vision)
+        #expect(q.region == .zero)
+
+        let asked = try #require(detector.detect(page(["Are these two shapes the same?"])).question)
+        #expect(asked.mode == .vision)
+        #expect(asked.region == .zero)
+    }
+
+    @Test func shapeGameCuesTriggerThePictureCheck() {
+        #expect(QuestionDetector.mentionsVisualPuzzle("Score 40\nTime 0:32\nMatch\nNo Match"))
+        #expect(QuestionDetector.mentionsVisualPuzzle("Find the circle with the same orientation"))
+        #expect(!QuestionDetector.mentionsVisualPuzzle("Given a string s, return the same string reversed"))
+        #expect(!QuestionDetector.mentionsVisualPuzzle("Live match highlights and scores"))
+    }
+
+    @Test func personalityImageChoiceIsAnsweredForTargetRoles() throws {
+        for prompt in ["Choose the image that better describes you", "Which picture represents you best?"] {
+            let q = try #require(detector.detect(page(["Question 7 of 40", prompt])).question, "\(prompt)")
+            #expect(!q.isAmbiguous)
+            #expect(q.mode == .vision)
+            #expect(q.region == .zero)
+            #expect(PromptBuilder.isSelfDescription(q))
+            let text = PromptBuilder.userPrompt(for: q, attachingImage: true)
+            #expect(text.contains(PromptBuilder.targetRoles))
+            #expect(text.contains("by its position"))
+        }
+    }
+
+    @Test func otherPictureGamesUseTheWholeScreen() throws {
+        let screens = [
+            ["Slide the boxes to create a connected path from start to end."],   // Pathfinder
+            ["What emotion is this person showing?"],                            // E-Motions
+            ["Which number is missing? Click the tiles that make 18."],          // Numerosity
+        ]
+        for lines in screens {
+            let q = try #require(detector.detect(page(lines)).question, "\(lines)")
+            #expect(!q.isAmbiguous, "\(lines)")
+            #expect(q.mode == .vision, "\(lines)")
+            #expect(q.region == .zero, "\(lines)")
+        }
+        // Emotion buttons alone are enough to look at the face.
+        #expect(QuestionDetector.mentionsVisualPuzzle("Time 0:41\nHappy\nSad\nAngry\nSurprised"))
+        #expect(!QuestionDetector.mentionsVisualPuzzle("I was happy with how the sad movie ended"))
+    }
+
+    @Test func workplaceChatIsAnsweredForTargetRoles() throws {
+        let q = try #require(detector.detect(page([
+            "Your teammate says the model results look wrong right before the demo. How would you respond?",
+            "A) Tell them it's fine and present anyway",
+            "B) Ask them to walk you through what they saw and check the data together",
+        ])).question)
+        #expect(PromptBuilder.isSelfDescription(q))
+        #expect(PromptBuilder.userPrompt(for: q, attachingImage: false).contains("workplace scenario"))
+    }
+
+    @Test func selectingAFileIsNotAPuzzle() {
+        let ocr = page(["Select a file to upload from your computer"])
+        #expect(detector.detect(ocr).question == nil)
+    }
+
     @Test func plainProseIsNotAQuestion() {
         let ocr = page([
             "The history of the Roman Empire spans more than a thousand years.",
@@ -122,7 +197,7 @@ struct QuestionDetectorTests {
         #expect(!q.text.contains("print(x)"))
     }
 
-    // MARK: Interview prompts
+    // MARK: Personal prompts
 
     @Test(arguments: [
         "Tell me about yourself.",
@@ -131,18 +206,18 @@ struct QuestionDetectorTests {
         "Describe a situation where you disagreed with your manager",
         "Why should we hire you?",
         "What is your greatest weakness?",
-        "Walk me through your resume",
+        "Walk me through your background",
         "Give an example of a time you showed leadership.",
     ])
-    func detectsInterviewPrompts(_ prompt: String) throws {
+    func detectsPersonalPrompts(_ prompt: String) throws {
         let q = try #require(detector.detect(page(["Question 2 of 5", "", prompt, "", "Record your answer"])).question, "\(prompt)")
-        #expect(q.kind == .interview, "\(prompt)")
+        #expect(q.kind == .personal, "\(prompt)")
         #expect(!q.isAmbiguous, "\(prompt)")
         #expect(q.mode == .text)
     }
 
     /// Reproduces a Google search box with large text wrapping mid-phrase.
-    @Test func interviewPromptWrappedAcrossShortLines() throws {
+    @Test func personalPromptWrappedAcrossShortLines() throws {
         var lines: [OCRLine] = []
         lines.append(OCRLine(text: "Google", box: CGRect(x: 0.38, y: 0.12, width: 0.23, height: 0.07), confidence: 0.9))
         let rows = ["in 2 minutes, tell me about a", "time you had to learn", "something quickly."]
@@ -151,13 +226,13 @@ struct QuestionDetectorTests {
         }
         lines.append(OCRLine(text: "AI Overview", box: CGRect(x: 0.16, y: 0.85, width: 0.2, height: 0.04), confidence: 0.9))
         let q = try #require(detector.detect(OCRResult(lines: lines, imageSize: CGSize(width: 3164, height: 2070))).question)
-        #expect(q.kind == .interview)
+        #expect(q.kind == .personal)
         #expect(!q.isAmbiguous)
         #expect(q.text.contains("something quickly"))
     }
 
     /// Google results page: search text beside the logo, tabs, then an AI Overview with bullets.
-    @Test func googleSearchWithAIOverviewIsInterviewNotMultipleChoice() throws {
+    @Test func googleSearchWithAIOverviewIsPersonalNotMultipleChoice() throws {
         let ocr = page([
             "Google | tell me about a time you had to make a decision with incomplete data",
             "AI Mode All Short videos Forums Videos Shopping Images More • Tools",
@@ -169,7 +244,7 @@ struct QuestionDetectorTests {
             "• Result: Share the outcome and what you learned.",
         ], width: 0.9)
         let q = try #require(detector.detect(ocr).question)
-        #expect(q.kind == .interview)
+        #expect(q.kind == .personal)
         #expect(q.options.isEmpty)
         #expect(!q.text.contains("AI Overview"))
         #expect(!q.text.contains("Situation:"))
@@ -281,7 +356,7 @@ struct QuestionDetectorTests {
         #expect(q.mode == .vision)
     }
 
-    @Test func leetCodeStatementBeatsConstraints() throws {
+    @Test func codingStatementBeatsConstraints() throws {
         func column(_ lines: [(String, CGFloat)], x: CGFloat) -> [OCRLine] {
             lines.map { OCRLine(text: $0.0, box: CGRect(x: x, y: $0.1, width: 0.42, height: 0.018), confidence: 0.95) }
         }
@@ -299,15 +374,15 @@ struct QuestionDetectorTests {
         #expect(!q.text.contains("Constraints"))
     }
 
-    // Screens from the evaluation corpus (HireVue, IBM, LeetCode, HackerRank, personality tests).
+    // Screens from the evaluation corpus (video prompts, coding sites, personality tests).
 
     @Test(arguments: [
         "In 2 minutes, describe how you would prioritize several competing deadlines from different managers.",
         "Give an example of a goal you didn't meet and what you learned from it.",
     ])
-    func interviewPhrasingsAreDetected(_ prompt: String) throws {
+    func personalPhrasingsAreDetected(_ prompt: String) throws {
         let q = try #require(QuestionDetector().detect(page(["Question 4 of 4", "", prompt, "", "Think time 0:30"])).question)
-        #expect(q.kind == .interview)
+        #expect(q.kind == .personal)
     }
 
     @Test func mostLeastStatementsBecomeOptions() throws {
@@ -373,11 +448,11 @@ struct QuestionDetectorTests {
 
     @Test func personalityItemsAreAnsweredAsTheUser() throws {
         let q = try #require(QuestionDetector().detect(page(["Which statement is more like you?", "A. I make decisions quickly.", "B. I gather the facts first."])).question)
-        #expect(PromptBuilder.isSelfAssessment(q))
+        #expect(PromptBuilder.isSelfDescription(q))
         let prompt = PromptBuilder.userPrompt(for: q, attachingImage: false, profile: "- Builds side projects")
         #expect(prompt.contains("Builds side projects"))
         let quiz = try #require(QuestionDetector().detect(page(["What is the capital of Australia?", "A. Sydney", "B. Canberra"])).question)
-        #expect(!PromptBuilder.isSelfAssessment(quiz))
+        #expect(!PromptBuilder.isSelfDescription(quiz))
         #expect(!PromptBuilder.userPrompt(for: quiz, attachingImage: false, profile: "- Builds side projects").contains("Builds side projects"))
     }
 }

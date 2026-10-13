@@ -2,32 +2,35 @@ import Foundation
 
 nonisolated enum PromptBuilder {
     static func systemPrompt(detail: DetailLevel, kind: QuestionKind) -> String {
-        kind == .interview ? interviewSystemPrompt(detail: detail) : solverSystemPrompt(detail: detail)
+        kind == .personal ? personalSystemPrompt(detail: detail) : solverSystemPrompt(detail: detail)
     }
 
-    static func interviewSystemPrompt(detail: DetailLevel) -> String {
+    /// The roles answers are tailored to; personality items are answered as someone strong in these roles.
+    static let targetRoles = "data science, AI/ML engineering, or product management"
+
+    static func personalSystemPrompt(detail: DetailLevel) -> String {
         let length = switch detail {
         case .brief: "60–100 words"
         case .standard: "100–170 words"
         case .detailed: "170–250 words"
         }
         return """
-        You help the user answer an interview question shown on their screen. Write the complete answer they would actually say, in the first person, as if you were them. Never explain how to answer, list steps, or give a fill-in template; write the real answer.
+        You help the user answer a question about themselves shown on their screen (their background, experience, motivations or a past situation). Write the complete answer they would actually say, in the first person, as if you were them. Never explain how to answer, list steps, or give a fill-in template; write the real answer.
 
         Respond in exactly this format:
         **Answer:**
         <a natural, spoken-style answer in the first person, \(length) unless a target length is given, organized under 2–4 short "###" headings (for example ### Situation, ### What I did, ### Result, or ### Who I am, ### What I've done, ### Why this role), with the words to say under each>
         **Explanation:**
-        <2–4 short bullet points: what the interviewer is looking for and how to make the answer stronger>
+        <2–4 short bullet points: what the question is really looking for and how to make the answer stronger>
 
         Rules:
         - Behavioral questions ("Tell me about a time…", "Describe a situation…"): follow the STAR structure (Situation, Task, Action, Result) and pick the single most relevant real story from "User context" when provided. If "User context" maps story types to experiences (e.g. "Leadership: …"), use that mapping.
         - "Tell me about yourself" / "Introduce yourself": present → past → why this role, in a confident, conversational tone.
         - If a "User context" section is provided, build the answer from those real facts (roles, projects, skills, results) and never contradict them.
-        - Never invent personal facts: employers, schools, names, dates, numbers, targets, tools, or outcomes that aren't in "User context". Above all, never invent events: no conflicts, disagreements, difficult people, failures, missed goals, mistakes, incidents, or how others reacted, unless "User context" describes them.
+        - Never invent personal facts: companies, schools, names, dates, numbers, targets, tools, or outcomes that aren't in "User context". Above all, never invent events: no conflicts, disagreements, difficult people, failures, missed goals, mistakes, incidents, or how others reacted, unless "User context" describes them.
         - When the question needs such an event and "User context" has none, build the answer from the real experience that honestly comes closest (a real challenge, tradeoff, or change made from feedback) without claiming the event happened, then add one final line in square brackets naming the gap, e.g. [Your context has no story about a difficult teammate; add one if you have it].
         - Keep ongoing work in the present tense and don't present it as finished; describe projections or modeled figures as such.
-        - If the screen names the company or role (see "Other text on the screen"), tailor the answer to it.
+        - If the screen names the company or role (see "Other text on the screen"), tailor the answer to it; otherwise assume the role is in \(targetRoles).
         - Use only the numbers, outcomes, and claims that appear in "User context", exactly as stated (e.g. rows stay rows, not patients). Don't add metrics, percentages, accuracy gains, awards, or impact statements that aren't there; if a result isn't stated, describe it qualitatively without numbers.
         - "User context" may also hold instructions on tone, length, or style; follow them where they fit this format.
         - Sound genuine, not scripted. No preamble.
@@ -56,6 +59,11 @@ nonisolated enum PromptBuilder {
         - Multiple choice: the answer must name the option letter/number and its text, e.g. "(B) 42". If it asks for both a most and a least choice (most/least like you, most/least effective), give both, e.g. "Most: (B) … · Least: (D) …".
         - Code and SQL: put a complete, working solution in a fenced code block with a language tag inside the Answer section.
         - Math: give the final value in the Answer; show key calculations in the Explanation.
+        - Picture puzzles and games: say exactly what to click or do, by value or position (e.g. "top-left", "row 2, column 3").
+        - Number tiles: name the numbers to pick and show they reach the target with the stated operation.
+        - Shape matching: compare shape type, color and count of every part, then the clockwise order of features around one anchor; a rotation keeps that order, a mirror image reverses it. A rotated copy is the same, a mirror image (flipped) is different unless the instructions say otherwise. Answer "Match" or "No match" plainly.
+        - Sliding-box path puzzles: list the moves in order (e.g. "slide the box at row 2, column 3 left") that connect the start to the end, using the fewest moves you can find.
+        - Emotion recognition: pick from the listed emotions by reading the face (brows, eyes, mouth); if the frame looks mid-change or neutral, say which emotion it is heading toward and lower your confidence.
         - Work the problem out completely before writing the Answer line; the Answer must match the result the Explanation reaches. The Explanation is a clean worked solution, not scratch work: no "wait", re-checks, or corrections.
         - Write math as plain text with Unicode symbols (×, ÷, −, ², √, ≤, ⇒). Never use LaTeX or $ delimiters; the display can't render them.
         - If information is missing, cut off, or unreadable, say so, state your assumptions, and lower your confidence. Never invent labels, numbers, or options.
@@ -64,7 +72,7 @@ nonisolated enum PromptBuilder {
         """
     }
 
-    /// Enough for a detailed résumé-style context (~4k tokens); longer text is cut at the end.
+    /// Enough for a detailed background context (~4k tokens); longer text is cut at the end.
     static let maxProfileCharacters = 16000
 
     static func userPrompt(for question: DetectedQuestion, attachingImage: Bool, profile: String? = nil, webSearch: Bool = false) -> String {
@@ -78,8 +86,11 @@ nonisolated enum PromptBuilder {
             """
         }
         if question.findInScreen {
+            let opening = question.needsConfirmation
+                ? "Find the main question, problem, or puzzle on the user's screen and answer it. If the screen has no question, exercise, or problem to solve (ordinary pages, UI, articles, calendars, dashboards), reply with exactly \(noQuestionToken) and nothing else."
+                : "The user pressed \"Solve now\". Find the main question, problem, or prompt on their screen and answer it."
             return """
-            The user pressed "Solve now". Find the main question, problem, or prompt on their screen and answer it. \
+            \(opening) \
             If there are several, answer the most prominent one and name it in one short line first. \
             \(attachingImage ? "The screenshot is attached and is the source of truth; OCR often misreads symbols (÷ as - or +, × as x, exponents as plain digits). Its OCR text:" : "Screen text (OCR):")
             \"\"\"
@@ -88,25 +99,31 @@ nonisolated enum PromptBuilder {
             """
         }
         var parts: [String] = []
-        if question.kind == .interview, let words = spokenWordTarget(question.text) {
+        if question.kind == .personal, let words = spokenWordTarget(question.text) {
             parts.append("Target length: about \(words) words, since the question asks for a specific speaking time (people speak about 130 words per minute).")
         }
-        if question.kind == .interview {
+        if question.kind == .personal {
             parts.append("Today's date: \(today()). Roles and projects that ended before it are in the past tense; ones marked \"Present\" are current.")
         }
-        if isSelfAssessment(question) {
+        if isSelfDescription(question) {
             parts.append("""
-            This is a personality or work-style questionnaire item about the user. Choose the option the user would most \
-            plausibly pick based on "User context"; where it doesn't say, pick what a strong, well-adjusted candidate for a \
-            professional role would honestly answer (dependable, collaborative, calm under pressure, organized, open to \
-            feedback), avoiding extreme or contradictory answers. Always commit to an answer; never reply that it can't be \
-            determined. Quote the exact option text.
+            This is a personality or work-style questionnaire item about the user, who is applying for \(targetRoles) \
+            roles. Choose the option the user would most plausibly pick based on "User context"; where it doesn't say, pick \
+            what someone strong in those roles would honestly answer: analytical and data-driven, curious and quick to \
+            learn, a structured problem-solver comfortable with ambiguity, focused on users and impact, takes ownership, \
+            collaborative and a clear communicator, dependable and calm under pressure, open to feedback. Avoid extreme or \
+            contradictory answers, and stay consistent with how earlier items would be answered. Always commit to an answer; \
+            never reply that it can't be determined. Quote the exact option text; if the choices are images, name the one \
+            by its position (left/right, top/bottom, or its number) and say in a few words what it shows. If it's a \
+            workplace scenario (a chat with a teammate, manager or customer), choose the reply someone strong in those roles would \
+            send: respectful and direct, takes ownership, works toward a solution with others, backs points with data, \
+            and escalates only when needed.
             """)
             if let profile {
                 parts.append("User context (facts about the user):\n\"\"\"\n\(profile.prefix(maxProfileCharacters))\n\"\"\"")
             }
         }
-        if question.kind == .interview, let profile {
+        if question.kind == .personal, let profile {
             parts.append("""
             User context (the user's instructions for how to respond, and facts about them):
             \"\"\"
@@ -114,7 +131,7 @@ nonisolated enum PromptBuilder {
             \"\"\"
             """)
         }
-        if question.kind == .interview, !question.contextText.isEmpty {
+        if question.kind == .personal, !question.contextText.isEmpty {
             parts.append("""
             Other text on the screen (may name the company, role, or time limit; don't answer it):
             \"\"\"
@@ -155,7 +172,7 @@ nonisolated enum PromptBuilder {
         // Small models weigh the end of the prompt most, so restate the target last.
         let firstLine = question.text.split(whereSeparator: \.isNewline).first.map(String.init) ?? question.text
         parts.append("Answer only the target question above (\"\(firstLine.prefix(160))\"). Ignore any other text on the screen."
-            + (question.kind == .interview && profile != nil
+            + (question.kind == .personal && profile != nil
                ? " Use only experiences, events, and numbers stated in User context; never invent a conflict, failure, target, or incident." : ""))
         return parts.joined(separator: "\n\n")
     }
@@ -183,21 +200,21 @@ nonisolated enum PromptBuilder {
     /// Surrounding text distracts small models, so include it only when the question
     /// points at other material (a table, a passage, "the following code"…).
     static func includesContext(_ question: DetectedQuestion) -> Bool {
-        guard !question.contextText.isEmpty, question.kind != .interview else { return false }
+        guard !question.contextText.isEmpty, question.kind != .personal else { return false }
         if question.kind == .sql || question.kind == .programming { return true }
         let text = question.text
         return referencePattern.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) != nil
     }
 
-    private static let selfAssessment = try! NSRegularExpression(pattern:
-        #"\b((most|least|more|less) (like|accurately describes|true of) (you|me|yourself)|describes? (you|yourself|me)\b|how (well|accurately) does .{0,40} describe|strongly (agree|disagree)|(personality|work(place)?[- ]style|preferences) (questionnaire|assessment|test)|which (statement|option) (is|best) .{0,30}\b(you|me)\b)"#,
+    private static let selfDescription = try! NSRegularExpression(pattern:
+        #"\b((most|least|more|less) (like|accurately describes|true of) (you|me|yourself)|(describes?|represents?|reflects?) (you|yourself|me)\b|how (well|accurately) does .{0,40} describe|strongly (agree|disagree)|(personality|work(place)?[- ]style|preferences) (questionnaire|assessment|test)|which (statement|option) (is|best) .{0,30}\b(you|me)\b|how (would|should) you (respond|reply|react|handle)|what would you (say|do|reply)|(choose|select|pick) (your|a|the best|the most (effective|appropriate)) (response|reply|message)|most (effective|appropriate) (response|reply|action))"#,
         options: [.caseInsensitive])
 
     /// Personality / work-style items ("most like you", Likert statements): answered as the user would.
-    static func isSelfAssessment(_ question: DetectedQuestion) -> Bool {
-        guard question.kind != .interview else { return false }
+    static func isSelfDescription(_ question: DetectedQuestion) -> Bool {
+        guard question.kind != .personal else { return false }
         let text = question.text + "\n" + question.options.joined(separator: "\n")
-        return selfAssessment.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) != nil
+        return selfDescription.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) != nil
     }
 
     static func today() -> String {
@@ -209,7 +226,7 @@ nonisolated enum PromptBuilder {
     private static let companyQuestion = try! NSRegularExpression(pattern:
         #"\b(why (do you want to|would you like to|are you interested in|did you apply to) (work|join|intern)|why (this|our) (company|firm|organi[sz]ation|team)|why (us|here)\b|what do you know about (us|our|the company|this company)|what (interests|excites) you about (us|our|the company|this (company|role|position))|how (would|will|can) you (contribute|add value) (to|at) (us|our))"#,
         options: [.caseInsensitive])
-    /// "Why IBM?" / "Why Deloitte, and why this role?": "why" followed by a capitalized name.
+    /// "Why Acme?" / "Why Initech, and why this role?": "why" followed by a capitalized name.
     private static let whyName = try! NSRegularExpression(pattern: #"\b[Ww]hy (?!I\b|We\b|You\b|They\b|It\b|This\b|That\b|Do\b|Did\b|Would\b|Should\b|Is\b|Are\b)[A-Z][\w&.'-]+"#)
     private static let recency = try! NSRegularExpression(pattern:
         #"\b(latest|current(ly)?|today'?s?|this (year|month|week)|as of|recent(ly)?|news|newest|upcoming|right now|so far this|20(2[5-9]|3\d))\b"#,
@@ -219,12 +236,12 @@ nonisolated enum PromptBuilder {
         options: [.caseInsensitive])
 
     /// A free, local check for questions that need facts a model can't know: company specifics
-    /// for "Why IBM?"-style interview questions, and recent events. Everything else skips search.
+    /// for "Why Acme?"-style questions, and recent events. Everything else skips search.
     static func wantsWebSearch(_ question: DetectedQuestion) -> Bool {
         let text = question.text
         let range = NSRange(text.startIndex..., in: text)
         switch question.kind {
-        case .interview:
+        case .personal:
             return companyQuestion.firstMatch(in: text, range: range) != nil || whyName.firstMatch(in: text, range: range) != nil
         case .general, .multipleChoice:
             return recency.firstMatch(in: text, range: range) != nil
@@ -240,8 +257,9 @@ nonisolated enum PromptBuilder {
 
     static let classificationSystemPrompt = """
     You check whether text captured from a screen is a question or task that the reader is being asked to answer right now: \
-    quiz, exam or homework questions; math or logic problems; coding or SQL challenges; multiple-choice items; or interview \
-    questions, including prompts such as "Tell me about yourself" or "Describe a time when…".
+    quiz, exam or homework questions; math or logic problems; coding or SQL challenges; multiple-choice items; or personal \
+    questions, including prompts such as "Tell me about yourself" or "Describe a time when…"; and personality or \
+    work-style items such as "Choose the image that better describes you".
     Answer NO for: article or blog headings, rhetorical questions inside prose, FAQ entries that are already answered, \
     UI labels, buttons and menus (e.g. "Forgot password?", "Need help?"), search boxes, code and code comments, chat \
     messages, marketing copy, and anything else that is not posed to the reader as a question to answer.
@@ -274,7 +292,7 @@ nonisolated enum PromptBuilder {
     expand, explain a step, check work, or answer a new question. Reply concisely in Markdown; use "###" headings for \
     longer replies and fenced code blocks with a language tag for code. If a screenshot is attached, use it. If a \
     "User context" section is given, follow its instructions on tone, length, style and format over these defaults, \
-    and use its facts about the user. When writing interview answers, speak as the user in the first person and use \
+    and use its facts about the user. When answering personal questions, speak as the user in the first person and use \
     only facts from "User context", with [placeholders] for anything missing. No preamble.
     """
 
